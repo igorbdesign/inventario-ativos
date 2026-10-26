@@ -1,780 +1,360 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="h-full bg-slate-100">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inventário & Triagem de Ativos TI</title>
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventário de Ativos - Triage Mobile</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS for .xlsx import and export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- FontAwesome icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { -webkit-tap-highlight-color: transparent; }
-        .touch-action-manipulation { touch-action: manipulation; }
-        /* Custom scrollbar for database modal/list */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    </style>
+    <!-- SheetJS (XLSX) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body class="h-full text-slate-800 flex flex-col font-sans select-none antialiased">
+<body class="bg-slate-100 text-slate-800 font-sans antialiased pb-20">
 
-    <!-- Header Navigation -->
-    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40">
-        <div class="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center space-x-2.5">
-                <div class="bg-blue-500/50 p-2 rounded-xl">
-                    <i class="fa-solid fa-boxes-stacked text-lg"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-base leading-tight">Inventário TI</h1>
-                    <p class="text-[11px] text-blue-200">Triagem para Descarte e Estoque</p>
-                </div>
-            </div>
-            <div class="flex items-center space-x-2">
-                <span id="session-counter" class="bg-blue-700 border border-blue-400 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-                    0 salvos
-                </span>
-            </div>
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="font-bold text-lg">Inventário & Triage</h1>
+            <span id="total-loaded" class="text-xs bg-indigo-800 px-2.5 py-1 rounded-full font-medium">0 ativos carregados</span>
         </div>
     </header>
 
-    <!-- App Body Container -->
-    <main class="max-w-lg mx-auto w-full p-3.5 flex-1 pb-24 space-y-3.5 overflow-y-auto">
-
-        <!-- Toast / Notification Banner -->
-        <div id="toast" class="hidden p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-lg transition-all duration-300 transform">
-            <div class="flex items-center space-x-2">
-                <i id="toast-icon" class="fa-solid fa-circle-info text-base"></i>
-                <span id="toast-msg">Mensagem de alerta</span>
-            </div>
-            <button onclick="hideToast()" class="text-xs uppercase bg-black/10 px-2 py-1 rounded-lg">OK</button>
+    <!-- Navigation Tabs -->
+    <nav class="bg-white shadow-sm border-b sticky top-12 z-40">
+        <div class="max-w-md mx-auto flex justify-around">
+            <button onclick="switchTab('triage')" id="tab-triage" class="flex-1 py-3 text-center font-semibold text-indigo-600 border-b-2 border-indigo-600 text-sm">Triage</button>
+            <button onclick="switchTab('database')" id="tab-database" class="flex-1 py-3 text-center font-medium text-slate-500 border-b-2 border-transparent text-sm">Bases</button>
+            <button onclick="switchTab('audited')" id="tab-audited" class="flex-1 py-3 text-center font-medium text-slate-500 border-b-2 border-transparent text-sm">Auditados (<span id="audit-count">0</span>)</button>
         </div>
+    </nav>
 
-        <!-- Navigation Tabs -->
-        <nav class="flex bg-slate-200/80 p-1 rounded-2xl shadow-inner text-xs font-bold">
-            <button onclick="switchTab('triage')" id="tab-triage" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white shadow-sm transition">
-                <i class="fa-solid fa-qrcode mr-1"></i> Triagem
-            </button>
-            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition">
-                <i class="fa-solid fa-clipboard-list mr-1"></i> Auditados (<span id="tab-count">0</span>)
-            </button>
-            <button onclick="switchTab('database')" id="tab-database" class="flex-1 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition">
-                <i class="fa-solid fa-database mr-1"></i> Base (<span id="db-total-count">0</span>)
-            </button>
-        </nav>
+    <!-- Main Container -->
+    <main class="max-w-md mx-auto p-4">
 
-        <!-- VIEW 1: TRIAGE FORM -->
-        <section id="view-triage" class="space-y-3.5">
-            
-            <!-- Dynamic Autocomplete Search Box -->
-            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 relative">
-                <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Buscar por Nome, Nº Ativo ou Serial (SN)
-                </label>
+        <!-- TAB 1: TRIAGE -->
+        <section id="content-triage" class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Buscar Ativo (Nome, Ativo ou SN)</label>
                 <div class="relative">
-                    <input type="text" id="search-input" 
-                           placeholder="Digite o Nome, Ativo (Ex: AT-101) ou SN..." 
-                           class="w-full pl-9 pr-9 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
-                           oninput="handleSearchInput()" 
-                           autocomplete="off">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-slate-400 text-sm"></i>
-                    <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-1">
-                        <i class="fa-solid fa-circle-xmark text-base"></i>
-                    </button>
+                    <input type="text" id="search-input" placeholder="Digite para buscar..." class="w-full p-3 border rounded-lg bg-slate-50 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                 </div>
-
-                <!-- Live Auto-Suggest List -->
-                <div id="suggestions-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100">
-                    <!-- Dynamic Items -->
-                </div>
+                <!-- Dropdown suggestions -->
+                <div id="suggestions-box" class="hidden mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 absolute w-full divide-y divide-slate-100"></div>
             </div>
 
-            <!-- Pre-filled Read-Only Asset Information -->
-            <div id="asset-card" class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 opacity-60 transition-all">
-                <div class="flex justify-between items-start mb-2 pb-2 border-b border-slate-100">
+            <!-- Formulário de Triage (Preenchimento Automático + Editáveis) -->
+            <form id="triage-form" onsubmit="saveAudit(event)" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <h2 class="font-semibold text-slate-700 border-b pb-2 text-sm flex justify-between items-center">
+                    <span>Dados do Equipamento</span>
+                    <span id="asset-cat" class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
+                </h2>
+
+                <!-- Campos Read-Only -->
+                <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                        <span id="card-category" class="inline-block px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-slate-100 text-slate-600 mb-1">
-                            Aguardando Seleção
-                        </span>
-                        <h2 id="card-name" class="font-bold text-slate-800 text-base leading-tight">Nenhum Ativo Selecionado</h2>
+                        <span class="text-slate-400 block">Nome:</span>
+                        <input type="text5" id="f-nome" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
-                    <span id="card-glpi-status" class="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
-                        Pendente
-                    </span>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span class="text-slate-400 text-[10px] block font-medium">Nº Ativo</span>
-                        <span id="card-ativo" class="font-bold text-blue-600 font-mono">---</span>
+                    <div>
+                        <span class="text-slate-400 block">Nº Ativo / Inv:</span>
+                        <input type="text" id="f-ativo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span class="text-slate-400 text-[10px] block font-medium">Serial Number (SN)</span>
-                        <span id="card-sn" class="font-bold text-slate-700 font-mono">---</span>
+                    <div>
+                        <span class="text-slate-400 block">Serial Number (SN):</span>
+                        <input type="text" id="f-sn" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 col-span-2">
-                        <span class="text-slate-400 text-[10px] block font-medium">Modelo</span>
-                        <span id="card-model" class="font-semibold text-slate-700">---</span>
+                    <div>
+                        <span class="text-slate-400 block">Modelo:</span>
+                        <input type="text" id="f-modelo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span class="text-slate-400 text-[10px] block font-medium">Localização</span>
-                        <span id="card-location" class="font-semibold text-slate-700">---</span>
+                    <div>
+                        <span class="text-slate-400 block">Localização:</span>
+                        <input type="text" id="f-local" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span class="text-slate-400 text-[10px] block font-medium">Usuário Registrado</span>
-                        <span id="card-user" class="font-semibold text-slate-700 truncate block">---</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Interactive Triage Form -->
-            <div id="triage-form" class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 opacity-60 pointer-events-none transition-all space-y-3.5">
-                
-                <!-- 1. General Condition -->
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        1. Condição Geral do Equipamento *
-                    </label>
-                    <div class="grid grid-cols-2 gap-1.5">
-                        <label class="cursor-pointer">
-                            <input type="radio" name="condicao" value="Bom" class="peer sr-only" checked onchange="updateDefectsVisibility()">
-                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold peer-checked:bg-emerald-500 peer-checked:text-white peer-checked:border-emerald-500 transition shadow-sm">
-                                <i class="fa-solid fa-circle-check text-sm block mb-0.5"></i> Bom / Operacional
-                            </div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="condicao" value="Ruim / Defeito" class="peer sr-only" onchange="updateDefectsVisibility()">
-                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold peer-checked:bg-amber-500 peer-checked:text-white peer-checked:border-amber-500 transition shadow-sm">
-                                <i class="fa-solid fa-triangle-exclamation text-sm block mb-0.5"></i> Ruim / Defeito
-                            </div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="condicao" value="Para Descarte" class="peer sr-only" onchange="updateDefectsVisibility()">
-                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition shadow-sm">
-                                <i class="fa-solid fa-trash-can text-sm block mb-0.5"></i> Sucata / Descarte
-                            </div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="condicao" value="Incompleto" class="peer sr-only" onchange="updateDefectsVisibility()">
-                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold peer-checked:bg-indigo-500 peer-checked:text-white peer-checked:border-indigo-500 transition shadow-sm">
-                                <i class="fa-solid fa-puzzle-piece text-sm block mb-0.5"></i> Incompleto
-                            </div>
-                        </label>
+                    <div>
+                        <span class="text-slate-400 block">Usuário Original:</span>
+                        <input type="text" id="f-usuario" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
                 </div>
 
-                <!-- 2. Target Destination -->
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        2. Destino do Ativo *
-                    </label>
-                    <select id="select-destino" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="Descarte / Leilão">Descarte / Leilão de Sucata</option>
-                        <option value="Guardar em Estoque">Guardar em Estoque (Disponível)</option>
-                        <option value="Encaminhar Manutenção">Encaminhar para Manutenção / Reparo</option>
-                        <option value="Doação">Separar para Doação</option>
-                        <option value="Devolução Fornecedor">Devolução ao Fornecedor</option>
-                    </select>
-                </div>
+                <hr class="border-slate-100">
 
-                <!-- 3. Category Specific Defects (Dynamic Checkboxes) -->
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        3. Defeitos Identificados (Selecione)
-                    </label>
-                    <div id="defects-container" class="grid grid-cols-1 gap-1.5">
-                        <!-- Populated dynamically according to Category (Notebook, Phone, Monitor) -->
+                <!-- Campos de Triage (Editáveis) -->
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Condição Física/Funcional *</label>
+                        <select id="f-condicao" required class="w-full p-2.5 bg-white border rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Selecione a condição...</option>
+                            <option value="Bom / Perfeito">Bom / Perfeito</option>
+                            <option value="Funcionando com Restrições">Funcionando com Restrições</option>
+                            <option value="Ruim / Defeituoso">Ruim / Defeituoso</option>
+                            <option value="Sucata / Descarte">Sucata / Descarte</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Defeitos / Problemas Encontrados</label>
+                        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border">
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Teclado Ruim/Apagado" class="rounded text-indigo-600"> <span>Teclado Ruim</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Tela Quebrada/Manchada" class="rounded text-indigo-600"> <span>Tela Quebrada</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Bateria Viciada/Ruim" class="rounded text-indigo-600"> <span>Bateria Ruim</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Sem Carregador/Fonte" class="rounded text-indigo-600"> <span>Sem Carregador</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Carcaça Danificada" class="rounded text-indigo-600"> <span>Carcaça Danificada</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Não Liga / Placa" class="rounded text-indigo-600"> <span>Não Liga</span></label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Destino / Ação Recomendada *</label>
+                        <select id="f-destino" required class="w-full p-2.5 bg-white border rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Selecione o destino...</option>
+                            <option value="Estoque / Pronto para Uso">Estoque / Pronto para Uso</option>
+                            <option value="Encaminhar para Manutenção">Encaminhar para Manutenção</option>
+                            <option value="Descarte / Sucata">Descarte / Sucata</option>
+                            <option value="Doação / Colaborador">Doação / Colaborador</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Observações Adicionais</label>
+                        <textarea id="f-obs" rows="2" placeholder="Detalhes extras..." class="w-full p-2 border rounded-lg text-sm"></textarea>
                     </div>
                 </div>
 
-                <!-- 4. Observations -->
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                        4. Observações Adicionais
-                    </label>
-                    <textarea id="input-obs" rows="2" placeholder="Ex: Dobradiça solta, falta 1 parafuso, tela manchada no canto direito..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"></textarea>
-                </div>
-
-                <!-- Save Action Button -->
-                <button onclick="saveAuditItem()" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center space-x-2 text-sm touch-action-manipulation">
-                    <i class="fa-solid fa-floppy-disk text-base"></i>
-                    <span>Salvar Equipamento na Sessão</span>
+                <button type="submit" id="btn-salvar" disabled class="w-full bg-indigo-600 text-white font-medium py-3 rounded-lg text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    Salvar e Próximo Ativo
                 </button>
-            </div>
+            </form>
         </section>
 
-        <!-- VIEW 2: AUDITED HISTORY & EXPORT -->
-        <section id="view-history" class="space-y-3.5 hidden">
-            <!-- Header Bar -->
-            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-center">
-                <div>
-                    <h2 class="font-bold text-slate-800 text-sm">Resumo da Sessão</h2>
-                    <p id="history-subtitle" class="text-xs text-slate-500">Nenhum item auditado</p>
-                </div>
-                <button onclick="exportToExcel()" id="btn-export" disabled class="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5">
-                    <i class="fa-solid fa-file-excel text-sm"></i>
-                    <span>Exportar Excel</span>
-                </button>
+        <!-- TAB 2: DATABASE -->
+        <section id="content-database" class="hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                <h2 class="font-semibold text-slate-700 text-sm">Importar Planilhas Excel (.xlsx)</h2>
+                <p class="text-xs text-slate-500">Selecione seus arquivos um a um. Eles serão somados automaticamente na base de dados do app (Notes, Telefones, Monitores).</p>
+                
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                
+                <div id="import-status" class="text-xs font-medium text-emerald-600"></div>
             </div>
 
-            <!-- List Container -->
-            <div id="audited-list" class="space-y-2.5">
-                <div id="empty-history" class="bg-white rounded-2xl p-8 text-center border border-slate-200">
-                    <i class="fa-solid fa-clipboard-check text-4xl text-slate-300 mb-2"></i>
-                    <h3 class="font-bold text-slate-700 text-sm">Nenhum ativo inventariado ainda</h3>
-                    <p class="text-xs text-slate-400 mt-1">Busque um ativo na aba "Triagem" para começar a auditá-lo.</p>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold text-slate-700 text-sm">Ativos na Memória</h2>
+                    <button onclick="clearDatabase()" class="text-xs text-red-600 hover:underline">Limpar Base</button>
+                </div>
+                <input type="text" id="db-filter" placeholder="Filtrar lista carregada..." oninput="renderDatabaseTable()" class="w-full p-2 border rounded-lg text-xs mb-3">
+                <div class="max-h-60 overflow-y-auto border rounded-lg">
+                    <table class="w-full text-left text-xs divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="p-2 font-medium text-slate-600">Categoria</th>
+                                <th class="p-2 font-medium text-slate-600">Identificação</th>
+                                <th class="p-2 font-medium text-slate-600">Modelo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="db-table-body" class="divide-y divide-slate-100">
+                            <tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo importado ainda.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
 
-        <!-- VIEW 3: DATABASE MANAGEMENT & XLSX IMPORT -->
-        <section id="view-database" class="space-y-3.5 hidden">
-            <!-- File Import Box -->
-            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200">
-                <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Importar Nova Base Excel (.xlsx / .csv)</h3>
-                <p class="text-xs text-slate-500 mb-3">Carregue suas planilhas para substituir ou atualizar os ativos da ferramenta:</p>
-                
-                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
-                <button onclick="document.getElementById('excel-file-input').click()" class="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center space-x-2 transition">
-                    <i class="fa-solid fa-file-import text-blue-600"></i>
-                    <span>Carregar Arquivo .XLSX</span>
-                </button>
-            </div>
-
-            <!-- Database Search Filter -->
-            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">Ativos Cadastrados</h3>
-                    <span id="db-filtered-count" class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">0 itens</span>
+        <!-- TAB 3: AUDITED -->
+        <section id="content-audited" class="hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="font-semibold text-slate-700 text-sm">Relatório de Conferência</h2>
+                    <button onclick="exportToExcel()" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-medium shadow hover:bg-emerald-700 transition">Exportar Excel (.xlsx)</button>
                 </div>
-                
-                <div class="relative mb-3">
-                    <input type="text" id="db-filter-input" placeholder="Filtrar base por qualquer termo..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="renderDatabaseList()">
-                    <i class="fa-solid fa-filter absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-
-                <div id="database-items-list" class="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                    <!-- Populated dynamically -->
+                <div id="audited-list" class="space-y-2 max-h-96 overflow-y-auto">
+                    <p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento auditado nesta sessão.</p>
                 </div>
             </div>
         </section>
 
     </main>
 
-    <!-- Footer Script & Logic -->
+    <!-- Script de Funcionamento -->
     <script>
-        // Default Sample Database initialized with typical IT assets from GLPI reports
-        let database = [
-            // Notebooks
-            { category: 'Notebook', id: 'AT-1001', sn: 'BRG1234567', name: 'NOTE-FIN-01', model: 'Dell Latitude 3420', location: 'SP - Matriz', user: 'Carlos Silva', status: 'Em uso' },
-            { category: 'Notebook', id: 'AT-1002', sn: 'BRG2345678', name: 'NOTE-TI-04', model: 'Lenovo ThinkPad E14', location: 'MG - Filial', user: 'Mariana Souza', status: 'Em uso' },
-            { category: 'Notebook', id: 'AT-1003', sn: 'BRG3456789', name: 'NOTE-RH-02', model: 'HP ProBook 440 G8', location: 'RJ - Filial', user: 'Fernanda Lima', status: 'Em estoque' },
-            { category: 'Notebook', id: 'AT-1004', sn: 'BRG4567890', name: 'NOTE-ENG-09', model: 'Dell Vostro 15', location: 'ES - Filial', user: 'Roberto Alves', status: 'Em uso' },
-            
-            // Monitors
-            { category: 'Monitor', id: 'MON-2001', sn: 'CNM8877661', name: 'MON-DELL-24A', model: 'Dell P2419H 23.8"', location: 'SP - Matriz', user: 'Carlos Silva', status: 'Em uso' },
-            { category: 'Monitor', id: 'MON-2002', sn: 'CNM8877662', name: 'MON-LG-21B', model: 'LG 22BN550', location: 'MG - Filial', user: 'Estoque TI', status: 'Em estoque' },
-            { category: 'Monitor', id: 'MON-2003', sn: 'CNM8877663', name: 'MON-SAMSUNG-27', model: 'Samsung Odyssey 27"', location: 'RJ - Filial', user: 'Design Team', status: 'Em uso' },
-
-            // Phones / Smartphones
-            { category: 'Telefone', id: 'TEL-3001', sn: '358921098471201', name: 'CEL-DIR-01', model: 'Samsung Galaxy A33 5G', location: 'SP - Matriz', user: 'Diretoria Executiva', status: 'Em uso' },
-            { category: 'Telefone', id: 'TEL-3002', sn: '358921098471202', name: 'CEL-LOG-05', model: 'Motorola Moto G22', location: 'MG - Filial', user: 'Expedição', status: 'Em uso' }
-        ];
-
-        // Defect Presets by Category
-        const defectPresets = {
-            'Notebook': [
-                'Teclado falhando / teclas apagadas',
-                'Tela quebrada / manchada / linhas',
-                'Bateria viciada / não segura carga',
-                'Carcaça quebrada / avariada',
-                'Não liga / curto na placa mãe',
-                'Sem carregador / fonte danificada',
-                'Touchpad não responde',
-                'Dobradiça quebrada / travada'
-            ],
-            'Monitor': [
-                'Tela trincada / manchada',
-                'Sem sinal / não exibe imagem',
-                'Conector HDMI/DisplayPort danificado',
-                'Fonte / Cabo de força danificado',
-                'Base/Suporte quebrado ou ausente',
-                'Botões de ajuste sem funcionar'
-            ],
-            'Telefone': [
-                'Tela trincada / touch não responde',
-                'Bateria estufada / viciada',
-                'Não liga / travado na logo',
-                'Conector de carga danificado',
-                'Câmera ou microfone com defeito',
-                'Problema no leitor de Chip/Wi-Fi'
-            ],
-            'Geral': [
-                'Equipamento queimado',
-                'Avaria estética grave',
-                'Componentes internos ausentes'
-            ]
-        };
-
-        // App State
-        let auditedSession = [];
+        let globalAssets = JSON.parse(localStorage.getItem('inv_assets')) || [];
+        let auditedAssets = JSON.parse(localStorage.getItem('inv_audited')) || [];
         let selectedAsset = null;
 
-        // Initialize App on DOM Load
-        window.onload = function() {
-            // Restore session from LocalStorage if available
-            const savedSession = localStorage.getItem('ti_inventory_session');
-            if (savedSession) {
-                try { auditedSession = JSON.parse(savedSession); } catch(e){}
-            }
+        updateCounts();
+        renderDatabaseTable();
+        renderAuditedList();
 
-            // Restore database from LocalStorage if user previously imported custom excel
-            const savedDb = localStorage.getItem('ti_inventory_db');
-            if (savedDb) {
-                try { database = JSON.parse(savedDb); } catch(e){}
-            }
-
-            updateCounters();
-            renderDatabaseList();
-            renderAuditedList();
-        };
-
-        // Tab Switcher
+        // Alternar Abas
         function switchTab(tab) {
-            ['triage', 'history', 'database'].forEach(t => {
-                const view = document.getElementById(`view-${t}`);
-                const btn = document.getElementById(`tab-${t}`);
-                if (t === tab) {
-                    view.classList.remove('hidden');
-                    btn.className = "flex-1 py-2.5 rounded-xl bg-blue-600 text-white shadow-sm transition";
-                } else {
-                    view.classList.add('hidden');
-                    btn.className = "flex-1 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition";
-                }
+            ['triage', 'database', 'audited'].forEach(t => {
+                document.getElementById(`content-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('text-indigo-600', 'border-indigo-600', 'font-semibold');
+                document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'border-transparent', 'font-medium');
             });
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('text-indigo-600', 'border-indigo-600', 'font-semibold');
+            document.getElementById(`tab-${tab}`).classList.remove('text-slate-500', 'border-transparent', 'font-medium');
         }
 
-        // Search Input & Autocomplete Handler
-        function handleSearchInput() {
-            const query = document.getElementById('search-input').value.trim().toLowerCase();
-            const suggestionsBox = document.getElementById('suggestions-box');
-            const clearBtn = document.getElementById('clear-search-btn');
-
-            if (query.length > 0) {
-                clearBtn.classList.remove('hidden');
-            } else {
-                clearBtn.classList.add('hidden');
-                suggestionsBox.classList.add('hidden');
-                return;
-            }
-
-            // Filter database by Name, SN or Asset Tag
-            const matches = database.filter(item => 
-                (item.id && item.id.toLowerCase().includes(query)) ||
-                (item.sn && item.sn.toLowerCase().includes(query)) ||
-                (item.name && item.name.toLowerCase().includes(query)) ||
-                (item.model && item.model.toLowerCase().includes(query))
-            ).slice(0, 7); // limit to 7 suggestions
-
-            suggestionsBox.innerHTML = '';
-
-            if (matches.length > 0) {
-                matches.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = "p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center text-xs transition";
-                    div.onclick = () => selectAsset(item);
-                    div.innerHTML = `
-                        <div>
-                            <div class="font-bold text-slate-800">${item.name} <span class="text-blue-600 font-mono">(${item.id})</span></div>
-                            <div class="text-[11px] text-slate-500">${item.category} • ${item.model}</div>
-                        </div>
-                        <div class="text-right font-mono text-[10px] text-slate-400">
-                            SN: ${item.sn}
-                        </div>
-                    `;
-                    suggestionsBox.appendChild(div);
-                });
-            } else {
-                // Option to register unregistered item on the fly
-                const div = document.createElement('div');
-                div.className = "p-3 bg-amber-50 hover:bg-amber-100 cursor-pointer text-xs transition text-amber-800 font-medium flex items-center justify-between";
-                div.onclick = () => createUnregisteredAsset(query);
-                div.innerHTML = `
-                    <span><i class="fa-solid fa-plus-circle mr-1"></i> Não encontrado. Cadastrar "<strong>${query.toUpperCase()}</strong>"?</span>
-                    <i class="fa-solid fa-arrow-right"></i>
-                `;
-                suggestionsBox.appendChild(div);
-            }
-
-            suggestionsBox.classList.remove('hidden');
+        // Atualizar Contadores
+        function updateCounts() {
+            document.getElementById('total-loaded').innerText = `${globalAssets.length} ativos carregados`;
+            document.getElementById('audit-count').innerText = auditedAssets.length;
         }
 
-        function clearSearch() {
-            document.getElementById('search-input').value = '';
-            document.getElementById('clear-search-btn').classList.add('hidden');
-            document.getElementById('suggestions-box').classList.add('hidden');
-            resetTriageForm();
-        }
-
-        // Select asset from autocomplete or database
-        function selectAsset(asset) {
-            selectedAsset = asset;
-            document.getElementById('search-input').value = `${asset.id} - ${asset.name}`;
-            document.getElementById('suggestions-box').classList.add('hidden');
-
-            // Fill Read-Only Card
-            document.getElementById('card-category').innerText = asset.category || 'Ativo TI';
-            document.getElementById('card-name').innerText = asset.name || 'Sem Nome';
-            document.getElementById('card-ativo').innerText = asset.id || 'N/A';
-            document.getElementById('card-sn').innerText = asset.sn || 'N/A';
-            document.getElementById('card-model').innerText = asset.model || 'Não especificado';
-            document.getElementById('card-location').innerText = asset.location || 'Não informada';
-            document.getElementById('card-user').innerText = asset.user || 'Nenhum';
-
-            const isAlreadyAudited = auditedSession.some(a => a.id === asset.id);
-            const statusBadge = document.getElementById('card-glpi-status');
-            if (isAlreadyAudited) {
-                statusBadge.innerText = 'Já Auditado';
-                statusBadge.className = 'px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700';
-            } else {
-                statusBadge.innerText = asset.status || 'Pendente';
-                statusBadge.className = 'px-2 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600';
-            }
-
-            // Render defects according to category
-            renderDefectsForCategory(asset.category);
-
-            // Enable Cards
-            document.getElementById('asset-card').classList.remove('opacity-60');
-            document.getElementById('triage-form').classList.remove('opacity-60', 'pointer-events-none');
-
-            showToast(`Ativo ${asset.id} selecionado!`, 'info');
-        }
-
-        // Register new item not present in database
-        function createUnregisteredAsset(rawTerm) {
-            const term = rawTerm.toUpperCase();
-            const newAsset = {
-                category: 'Notebook', // default category
-                id: term.startsWith('AT') ? term : `NOVO-${Math.floor(1000 + Math.random() * 9000)}`,
-                sn: term.startsWith('SN') || term.startsWith('BRG') ? term : 'NÃO_POSSUI',
-                name: term,
-                model: 'Manual / Não Cadastrado',
-                location: 'Geral',
-                user: 'Não Informado',
-                status: 'Sem Cadastro'
-            };
-            selectAsset(newAsset);
-        }
-
-        // Render defect options based on Category
-        function renderDefectsForCategory(category) {
-            const container = document.getElementById('defects-container');
-            container.innerHTML = '';
-
-            let list = defectPresets[category] || defectPresets['Geral'];
-
-            list.forEach((defect, idx) => {
-                const label = document.createElement('label');
-                label.className = "flex items-center space-x-2.5 p-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium cursor-pointer active:bg-slate-100";
-                label.innerHTML = `
-                    <input type="checkbox" name="defeito" value="${defect}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
-                    <span class="text-slate-700">${defect}</span>
-                `;
-                container.appendChild(label);
-            });
-        }
-
-        function updateDefectsVisibility() {
-            // Optional behavior when switching condition
-        }
-
-        // Save Item Audit Result to Current Session
-        function saveAuditItem() {
-            if (!selectedAsset) return;
-
-            const condicao = document.querySelector('input[name="condicao"]:checked').value;
-            const destino = document.getElementById('select-destino').value;
-            
-            const selectedDefects = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value);
-            const defeitosStr = selectedDefects.length > 0 ? selectedDefects.join('; ') : 'Nenhum defeito relado';
-
-            const obs = document.getElementById('input-obs').value.trim() || 'N/A';
-
-            const now = new Date();
-            const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-
-            const auditRecord = {
-                id: selectedAsset.id,
-                name: selectedAsset.name,
-                category: selectedAsset.category,
-                sn: selectedAsset.sn,
-                model: selectedAsset.model,
-                location: selectedAsset.location,
-                user: selectedAsset.user,
-                condicao: condicao,
-                destino: destino,
-                defeitos: defeitosStr,
-                observacao: obs,
-                timestamp: timestamp
-            };
-
-            // Check if item was already in session and update, else insert at top
-            const existingIdx = auditedSession.findIndex(i => i.id === selectedAsset.id);
-            if (existingIdx >= 0) {
-                auditedSession[existingIdx] = auditRecord;
-            } else {
-                auditedSession.unshift(auditRecord);
-            }
-
-            // Persist to LocalStorage
-            localStorage.setItem('ti_inventory_session', JSON.stringify(auditedSession));
-
-            showToast(`Ativo ${selectedAsset.id} gravado com sucesso!`, 'success');
-
-            // Reset Form and State
-            resetTriageForm();
-            updateCounters();
-            renderAuditedList();
-        }
-
-        function resetTriageForm() {
-            selectedAsset = null;
-            document.getElementById('search-input').value = '';
-            document.getElementById('input-obs').value = '';
-            
-            // Reset read-only card
-            document.getElementById('card-category').innerText = 'Aguardando Seleção';
-            document.getElementById('card-name').innerText = 'Nenhum Ativo Selecionado';
-            document.getElementById('card-ativo').innerText = '---';
-            document.getElementById('card-sn').innerText = '---';
-            document.getElementById('card-model').innerText = '---';
-            document.getElementById('card-location').innerText = '---';
-            document.getElementById('card-user').innerText = '---';
-            document.getElementById('card-glpi-status').innerText = 'Pendente';
-
-            // Lock Form
-            document.getElementById('asset-card').classList.add('opacity-60');
-            document.getElementById('triage-form').classList.add('opacity-60', 'pointer-events-none');
-        }
-
-        // Render Audited List (Tab 2)
-        function renderAuditedList() {
-            const container = document.getElementById('audited-list');
-            const emptyState = document.getElementById('empty-history');
-            const btnExport = document.getElementById('btn-export');
-
-            if (auditedSession.length === 0) {
-                emptyState.classList.remove('hidden');
-                btnExport.setAttribute('disabled', 'true');
-                container.querySelectorAll('.audited-item-card').forEach(c => c.remove());
-                return;
-            }
-
-            emptyState.classList.add('hidden');
-            btnExport.removeAttribute('disabled');
-            container.querySelectorAll('.audited-item-card').forEach(c => c.remove());
-
-            auditedSession.forEach(item => {
-                let condColor = 'bg-emerald-100 text-emerald-800';
-                if (item.condicao.includes('Ruim')) condColor = 'bg-amber-100 text-amber-800';
-                if (item.condicao.includes('Descarte')) condColor = 'bg-rose-100 text-rose-800';
-
-                const card = document.createElement('div');
-                card.className = "audited-item-card bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-2";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <span class="text-xs font-bold text-blue-600 font-mono">${item.id}</span>
-                            <h4 class="font-bold text-slate-800 text-sm">${item.name}</h4>
-                        </div>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${condColor}">${item.condicao}</span>
-                    </div>
-
-                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
-                        <div><strong>Destino:</strong> ${item.destino}</div>
-                        <div><strong>Defeitos:</strong> ${item.defeitos}</div>
-                        <div><strong>Obs:</strong> ${item.observacao}</div>
-                        <div class="text-[10px] text-slate-400 pt-1 border-t border-slate-200/50 mt-1 flex justify-between">
-                            <span>SN: ${item.sn}</span>
-                            <span>${item.timestamp}</span>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end pt-1">
-                        <button onclick="removeAuditedItem('${item.id}')" class="text-rose-600 text-xs font-bold hover:bg-rose-50 px-2 py-1 rounded-lg transition">
-                            <i class="fa-solid fa-trash-can mr-1"></i> Remover
-                        </button>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        function removeAuditedItem(id) {
-            auditedSession = auditedSession.filter(i => i.id !== id);
-            localStorage.setItem('ti_inventory_session', JSON.stringify(auditedSession));
-            updateCounters();
-            renderAuditedList();
-            showToast(`Item ${id} removido da sessão.`, 'info');
-        }
-
-        // Render Database List (Tab 3)
-        function renderDatabaseList() {
-            const container = document.getElementById('database-items-list');
-            const filter = document.getElementById('db-filter-input').value.toLowerCase();
-            container.innerHTML = '';
-
-            const filtered = database.filter(item => 
-                (item.id && item.id.toLowerCase().includes(filter)) ||
-                (item.name && item.name.toLowerCase().includes(filter)) ||
-                (item.sn && item.sn.toLowerCase().includes(filter)) ||
-                (item.model && item.model.toLowerCase().includes(filter))
-            );
-
-            document.getElementById('db-filtered-count').innerText = `${filtered.length} itens`;
-
-            filtered.forEach(item => {
-                const isAudited = auditedSession.some(a => a.id === item.id);
-                const badge = isAudited 
-                    ? '<span class="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded">Auditado</span>'
-                    : '<span class="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded">Pendente</span>';
-
-                const div = document.createElement('div');
-                div.className = "p-2.5 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs";
-                div.innerHTML = `
-                    <div>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="font-bold text-blue-600 font-mono">${item.id}</span>
-                            <span class="font-bold text-slate-800">${item.name}</span>
-                            ${badge}
-                        </div>
-                        <div class="text-[11px] text-slate-500">${item.category} • ${item.model} • SN: <span class="font-mono">${item.sn}</span></div>
-                    </div>
-                    <button onclick="selectAssetFromDb('${item.id}')" class="bg-blue-50 text-blue-600 p-2 rounded-lg font-bold hover:bg-blue-600 hover:text-white transition">
-                        <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        function selectAssetFromDb(id) {
-            const asset = database.find(a => a.id === id);
-            if (asset) {
-                switchTab('triage');
-                selectAsset(asset);
-            }
-        }
-
-        // Handle File Upload (.xlsx / .csv)
-        function handleFileUpload(e) {
+        // Leitor de Excel (Acumulativo)
+        document.getElementById('excel-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = function(e) {
                 try {
-                    const data = new Uint8Array(evt.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
 
-                    if (jsonData.length > 0) {
-                        // Map uploaded columns to system structure
-                        database = jsonData.map((row, idx) => ({
-                            category: row['Categoria'] || row['Tipo'] || 'Notebook',
-                            id: row['N. Ativo'] || row['Ativo'] || row['Tag'] || `AT-${1000 + idx}`,
-                            sn: row['Serial'] || row['SN'] || row['Serial Number'] || 'N/A',
-                            name: row['Nome'] || row['Computador'] || row['Nome Ativo'] || `EQP-${idx+1}`,
-                            model: row['Modelo'] || row['Especificação'] || 'N/A',
-                            location: row['Localização'] || row['Filial'] || 'Geral',
-                            user: row['Usuário'] || row['Responsável'] || 'N/A',
-                            status: row['Status'] || 'Importado'
-                        }));
+                    let addedCount = 0;
+                    json.forEach(row => {
+                        // Tentar mapear colunas flexíveis dos diferentes modelos de planilha (Notes, Telefones, Monitores)
+                        const nome = row['Nome'] || row['nome'] || '';
+                        const ativo = row['Ativo'] || row['Número de inventário'] || row['ativo'] || '';
+                        const sn = row['SN'] || row['Número de série'] || row['sn'] || '';
+                        const modelo = row['Modelo'] || row['modelo'] || '';
+                        const localizacao = row['Localização'] || row['localizacao'] || '';
+                        const usuario = row['Usuário'] || row['usuario'] || '';
+                        const status = row['Status'] || row['status'] || '';
 
-                        localStorage.setItem('ti_inventory_db', JSON.stringify(database));
-                        updateCounters();
-                        renderDatabaseList();
-                        showToast(`${database.length} ativos carregados com sucesso!`, 'success');
-                    }
-                } catch(err) {
-                    showToast('Erro ao ler planilha Excel. Verifique o arquivo.', 'error');
+                        // Determinar categoria padrão pelo nome do arquivo ou colunas
+                        let categoria = 'Geral';
+                        const lowerName = file.name.toLowerCase();
+                        if (lowerName.includes('note')) categoria = 'Notebook';
+                        else if (lowerName.includes('telefone') || lowerName.includes('celular')) categoria = 'Telefone';
+                        else if (lowerName.includes('monitor')) categoria = 'Monitor';
+                        else categoria = row['Tipo'] || 'Outro';
+
+                        globalAssets.push({
+                            id: Math.random().toString(36.substring(2, 9)),
+                            categoria,
+                            nome: String(nome),
+                            ativo: String(ativo),
+                            sn: String(sn),
+                            modelo: String(modelo),
+                            localizacao: String(localizacao),
+                            usuario: String(usuario),
+                            status_origem: String(status)
+                        });
+                        addedCount++;
+                    });
+
+                    localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+                    updateCounts();
+                    renderDatabaseTable();
+                    document.getElementById('import-status').innerText = `Sucesso! +${addedCount} itens adicionados de "${file.name}".`;
+                    e.target.value = '';
+                } catch (err) {
+                    alert('Erro ao ler arquivo Excel: ' + err.message);
                 }
             };
             reader.readAsArrayBuffer(file);
+        });
+
+        function clearDatabase() {
+            if (confirm('Deseja realmente limpar todos os ativos carregados?')) {
+                globalAssets = [];
+                localStorage.removeItem('inv_assets');
+                updateCounts();
+                renderDatabaseTable();
+            }
         }
 
-        // Export Audited Items to Real .XLSX Excel File
-        function exportToExcel() {
-            if (auditedSession.length === 0) {
-                showToast('Nenhum item para exportar.', 'error');
+        function renderDatabaseTable() {
+            const filter = (document.getElementById('db-filter').value || '').toLowerCase();
+            const tbody = document.getElementById('db-table-body');
+            const filtered = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(filter) || 
+                a.ativo.toLowerCase().includes(filter) || 
+                a.sn.toLowerCase().includes(filter) ||
+                a.modelo.toLowerCase().includes(filter)
+            ).slice(f => f, 100); // mostrar até 100 para performance
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo encontrado.</td></tr>`;
                 return;
             }
 
-            const excelRows = auditedSession.map(item => ({
-                "Data/Hora": item.timestamp,
-                "Categoria": item.category,
-                "Nº Ativo": item.id,
-                "Nome do Ativo": item.name,
-                "Serial Number (SN)": item.sn,
-                "Modelo": item.model,
-                "Localização": item.location,
-                "Usuário Cadastrado": item.user,
-                "Condição Geral": item.condicao,
-                "Destino Definido": item.destino,
-                "Defeitos Identificados": item.defeitos,
-                "Observações": item.observacao
-            }));
-
-            const worksheet = XLSX.utils.json_to_sheet(excelRows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Levantamento_Descarte");
-
-            // Format date for filename
-            const dateStr = new Date().toISOString().slice(0, 10);
-            XLSX.writeFile(workbook, `Relatorio_Levantamento_TI_${dateStr}.xlsx`);
-            
-            showToast('Relatório Excel exportado com sucesso!', 'success');
+            tbody.innerHTML = filtered.map(item => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2 font-medium text-slate-700">${item.categoria}</td>
+                    <td class="p-2 text-slate-600">${item.nome || item.ativo || item.sn}</td>
+                    <td class="p-2 text-slate-500">${item.modelo}</td>
+                </tr>
+            `).join('');
         }
 
-        // Update Counter Badges
-        function updateCounters() {
-            const count = auditedSession.length;
-            document.getElementById('session-counter').innerText = `${count} salvos`;
-            document.getElementById('tab-count').innerText = count;
-            document.getElementById('history-subtitle').innerText = `${count} equipamento(s) inventariado(s)`;
-            document.getElementById('db-total-count').innerText = database.length;
-        }
+        // Sistema de Busca em Tempo Real na Triage
+        const searchInput = document.getElementById('search-input');
+        const suggestionsBox = document.getElementById('suggestions-box');
 
-        // Custom Toast Box
-        function showToast(msg, type = 'info') {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toast-msg');
-            const toastIcon = document.getElementById('toast-icon');
-
-            toastMsg.innerText = msg;
-            
-            if (type === 'success') {
-                toast.className = "p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-lg bg-emerald-600 text-white transition-all";
-                toastIcon.className = "fa-solid fa-circle-check text-base";
-            } else if (type === 'error') {
-                toast.className = "p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-lg bg-rose-600 text-white transition-all";
-                toastIcon.className = "fa-solid fa-circle-xmark text-base";
-            } else {
-                toast.className = "p-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-lg bg-blue-600 text-white transition-all";
-                toastIcon.className = "fa-solid fa-circle-info text-base";
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query.length < 1) {
+                suggestionsBox.classList.add('hidden');
+                return;
             }
 
-            toast.classList.remove('hidden');
-            setTimeout(hideToast, 3500);
+            const matches = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(query) || 
+                a.ativo.toLowerCase().includes(query) || 
+                a.sn.toLowerCase().includes(query)
+            ).slice(0, 10);
+
+            if (matches.length === 0) {
+                suggestionsBox.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum equipamento correspondente.</div>`;
+            } else {
+                suggestionsBox.innerHTML = matches.map(item => `
+                    <div onclick='selectAssetItem(${JSON.stringify(item)})' class="p-2.5 hover:bg-indigo-50 cursor-pointer text-xs">
+                        <div class="font-bold text-indigo-700">${item.nome || 'Sem Nome'} <span class="text-slate-400 font-normal">(${item.categoria})</span></div>
+                        <div class="text-slate-500">Ativo: ${item.ativo} | SN: ${item.sn} | Modelo: ${item.modelo}</div>
+                    </div>
+                `).join('');
+            }
+            suggestionsBox.classList.remove('hidden');
+        });
+
+        function selectAssetItem(item) {
+            selectedAsset = item;
+            document.getElementById('f-nome').value = item.nome;
+            document.getElementById('f-ativo').value = item.ativo;
+            document.getElementById('f-sn').value = item.sn;
+            document.getElementById('f-modelo').value = item.modelo;
+            document.getElementById('f-local').value = item.localizacao;
+            document.getElementById('f-usuario').value = item.usuario;
+            document.getElementById('asset-cat').innerText = item.categoria;
+
+            searchInput.value = item.nome || item.ativo || item.sn;
+            suggestionsBox.classList.add('hidden');
+            document.getElementById('btn-salvar').removeAttribute('disabled');
         }
 
-        function hideToast() {
-            document.getElementById('toast').classList.add('hidden');
-        }
-    </script>
-</body>
-</html>
+        // Salvar Triage
+        function saveAudit(e) {
+            e.preventDefault();
+            if (!selectedAsset) return;
+
+            const condicao = document.getElementById('f-condicao').value;
+            const destino = document.getElementById('f-destino').value;
+            const obs = document.getElementById('f-obs').value;
+
+            const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
+
+            const auditRecord = {
+                ...selectedAsset,
+                condicao,
+                defeitos: defeitosChecked || 'Nenhum',
+                destino,
+                observ
