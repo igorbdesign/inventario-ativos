@@ -49,7 +49,7 @@
                     <span id="asset-cat" class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
                 </h2>
 
-                <!-- Campos do Equipamento (Todos automáticos, Local e Usuário editáveis se precisar) -->
+                <!-- Campos do Equipamento -->
                 <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
                         <span class="text-slate-400 block">Nome:</span>
@@ -68,22 +68,35 @@
                         <input type="text" id="f-modelo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
 
-                    <!-- Localização (Vem automática do banco, mas editável) -->
+                    <!-- Localização (Bloqueada, clica para destravar e selecionar ES, MG, RJ, SP) -->
                     <div>
                         <div class="flex justify-between">
-                            <span class="text-indigo-600 font-bold block">Localização *:</span>
+                            <span class="text-slate-500 font-bold block">Localização:</span>
                             <span id="loc-changed-badge" class="hidden text-[10px] text-amber-600 font-bold">Alterado!</span>
                         </div>
-                        <input type="text" id="f-local" required oninput="checkChanges()" class="w-full bg-white p-2 rounded border border-indigo-200 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500">
+                        <div id="container-local" onclick="unlockField('local')" class="cursor-pointer" title="Clique para alterar">
+                            <input type="text" id="f-local-text" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium cursor-pointer" placeholder="Selecione ativo...">
+                            <select id="f-local-select" class="hidden w-full bg-white p-2 rounded border border-indigo-300 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500" onchange="syncField('local')">
+                                <option value="ES">ES</option>
+                                <option value="MG">MG</option>
+                                <option value="RJ">RJ</option>
+                                <option value="SP">SP</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <!-- Usuário (Vem automático do banco, mas editável) -->
+                    <!-- Usuário (Bloqueado, clica para destravar e selecionar da base) -->
                     <div>
                         <div class="flex justify-between">
-                            <span class="text-indigo-600 font-bold block">Usuário *:</span>
+                            <span class="text-slate-500 font-bold block">Usuário:</span>
                             <span id="usr-changed-badge" class="hidden text-[10px] text-amber-600 font-bold">Alterado!</span>
                         </div>
-                        <input type="text" id="f-usuario" required oninput="checkChanges()" class="w-full bg-white p-2 rounded border border-indigo-200 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500">
+                        <div id="container-usuario" onclick="unlockField('usuario')" class="cursor-pointer" title="Clique para alterar">
+                            <input type="text" id="f-usuario-text" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium cursor-pointer" placeholder="Selecione ativo...">
+                            <select id="f-usuario-select" class="hidden w-full bg-white p-2 rounded border border-indigo-300 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500" onchange="syncField('usuario')">
+                                <!-- Preenchido dinamicamente com os usuários do banco -->
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -272,6 +285,7 @@
                     localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
                     updateCounts();
                     renderDatabaseTable();
+                    populateUserDropdown();
                     document.getElementById('import-status').innerText = `Sucesso! +${addedCount} itens adicionados de "${file.name}".`;
                     e.target.value = '';
                 } catch (err) {
@@ -281,12 +295,22 @@
             reader.readAsArrayBuffer(file);
         });
 
+        function populateUserDropdown() {
+            const users = [...new Set(globalAssets.map(a => a.usuario).filter(u => u && u !== 'undefined' && u !== 'nan'))].sort();
+            const selectUsr = document.getElementById('f-usuario-select');
+            selectUsr.innerHTML = users.map(u => `<option value="${u}">${u}</option>`).join('');
+        }
+
+        // Popular usuários ao carregar a página se já houver dados na memória
+        populateUserDropdown();
+
         function clearDatabase() {
             if (confirm('Deseja realmente limpar todos os ativos carregados?')) {
                 globalAssets = [];
                 localStorage.removeItem('inv_assets');
                 updateCounts();
                 renderDatabaseTable();
+                populateUserDropdown();
             }
         }
 
@@ -295,6 +319,7 @@
             localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
             updateCounts();
             renderDatabaseTable();
+            populateUserDropdown();
         }
 
         function renderDatabaseTable() {
@@ -362,9 +387,16 @@
             document.getElementById('f-sn').value = item.sn;
             document.getElementById('f-modelo').value = item.modelo;
             
-            // Preenche automático com o que veio do banco
-            document.getElementById('f-local').value = item.localizacao;
-            document.getElementById('f-usuario').value = item.usuario;
+            // Resetar campos para modo bloqueado (texto)
+            document.getElementById('f-local-text').value = item.localizacao || '';
+            document.getElementById('f-local-select').value = item.localizacao || 'ES';
+            document.getElementById('f-local-text').classList.remove('hidden');
+            document.getElementById('f-local-select').classList.add('hidden');
+
+            document.getElementById('f-usuario-text').value = item.usuario || '';
+            document.getElementById('f-usuario-select').value = item.usuario || '';
+            document.getElementById('f-usuario-text').classList.remove('hidden');
+            document.getElementById('f-usuario-select').classList.add('hidden');
 
             document.getElementById('loc-changed-badge').classList.add('hidden');
             document.getElementById('usr-changed-badge').classList.add('hidden');
@@ -375,22 +407,42 @@
             document.getElementById('btn-salvar').removeAttribute('disabled');
         }
 
-        function checkChanges() {
+        // Desbloquear campo ao clicar com confirmação
+        function unlockField(field) {
             if (!selectedAsset) return;
 
-            const currentLocal = document.getElementById('f-local').value.trim();
-            const currentUsuario = document.getElementById('f-usuario').value.trim();
+            const confirmou = confirm(`⚠️ Deseja realmente alterar o campo "${field === 'local' ? 'Localização' : 'Usuário'}" deste equipamento?`);
+            if (!confirmou) return;
 
-            if (currentLocal !== String(selectedAsset.localizacao)) {
-                document.getElementById('loc-changed-badge').classList.remove('hidden');
-            } else {
-                document.getElementById('loc-changed-badge').classList.add('hidden');
+            if (field === 'local') {
+                document.getElementById('f-local-text').classList.add('hidden');
+                document.getElementById('f-local-select').classList.remove('hidden');
+                document.getElementById('f-local-select').focus();
+            } else if (field === 'usuario') {
+                document.getElementById('f-usuario-text').classList.add('hidden');
+                document.getElementById('f-usuario-select').classList.remove('hidden');
+                document.getElementById('f-usuario-select').focus();
             }
+        }
 
-            if (currentUsuario !== String(selectedAsset.usuario)) {
-                document.getElementById('usr-changed-badge').classList.remove('hidden');
-            } else {
-                document.getElementById('usr-changed-badge').classList.add('hidden');
+        // Sincronizar escolha da lista suspensa
+        function syncField(field) {
+            if (field === 'local') {
+                const val = document.getElementById('f-local-select').value;
+                document.getElementById('f-local-text').value = val;
+                if (val !== String(selectedAsset.localizacao)) {
+                    document.getElementById('loc-changed-badge').classList.remove('hidden');
+                } else {
+                    document.getElementById('loc-changed-badge').classList.add('hidden');
+                }
+            } else if (field === 'usuario') {
+                const val = document.getElementById('f-usuario-select').value;
+                document.getElementById('f-usuario-text').value = val;
+                if (val !== String(selectedAsset.usuario)) {
+                    document.getElementById('usr-changed-badge').classList.remove('hidden');
+                } else {
+                    document.getElementById('usr-changed-badge').classList.add('hidden');
+                }
             }
         }
 
@@ -401,18 +453,13 @@
             const condicao = document.getElementById('f-condicao').value;
             const destino = document.getElementById('f-destino').value;
             const obs = document.getElementById('f-obs').value;
-            const novaLocalizacao = document.getElementById('f-local').value.trim();
-            const novoUsuario = document.getElementById('f-usuario').value.trim();
+            const novaLocalizacao = document.getElementById('f-local-text').value.trim();
+            const novoUsuario = document.getElementById('f-usuario-text').value.trim();
 
             const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
 
             const localFoiAlterado = novaLocalizacao !== String(selectedAsset.localizacao);
             const usuarioFoiAlterado = novoUsuario !== String(selectedAsset.usuario);
-
-            if (localFoiAlterado || usuarioFoiAlterado) {
-                const confirmou = confirm(`⚠️ Você alterou dados que vieram do banco!\n\n- Localização Original: "${selectedAsset.localizacao}" ➔ Nova: "${novaLocalizacao}"\n- Usuário Original: "${selectedAsset.usuario}" ➔ Novo: "${novoUsuario}"\n\nDeseja confirmar e registrar essa alteração no relatório?`);
-                if (!confirmou) return;
-            }
 
             const auditRecord = {
                 ...selectedAsset,
