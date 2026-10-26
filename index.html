@@ -49,7 +49,7 @@
                     <span id="asset-cat" class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
                 </h2>
 
-                <!-- Campos Mistos (Fixo vs Editáveis com Confirmação) -->
+                <!-- Campos Mistos (Fixo vs Editáveis) -->
                 <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
                         <span class="text-slate-400 block">Nome (Fixo):</span>
@@ -68,14 +68,23 @@
                         <input type="text" id="f-modelo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
 
-                    <!-- Campos Editáveis com Alerta de Confirmação -->
+                    <!-- Localização (Seleção ES, MG, RJ, SP) -->
                     <div>
                         <div class="flex justify-between">
                             <span class="text-indigo-600 font-bold block">Localização *:</span>
                             <span id="loc-changed-badge" class="hidden text-[10px] text-amber-600 font-bold">Alterado!</span>
                         </div>
-                        <input type="text" id="f-local" required oninput="checkChanges()" class="w-full bg-white p-2 rounded border border-indigo-200 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500">
+                        <select id="f-local" required onchange="checkChanges()" class="w-full bg-white p-2 rounded border border-indigo-200 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Selecione...</option>
+                            <option value="ES">ES</option>
+                            <option value="MG">MG</option>
+                            <option value="RJ">RJ</option>
+                            <option value="SP">SP</option>
+                            <option value="Outro">Outro</option>
+                        </select>
                     </div>
+
+                    <!-- Usuário (Editável vindo da Base) -->
                     <div>
                         <div class="flex justify-between">
                             <span class="text-indigo-600 font-bold block">Usuário *:</span>
@@ -360,8 +369,21 @@
             document.getElementById('f-sn').value = item.sn;
             document.getElementById('f-modelo').value = item.modelo;
             
-            // Campos editáveis preenchidos com o valor original da base
-            document.getElementById('f-local').value = item.localizacao;
+            // Atribuir localização considerando ES, MG, RJ, SP (se vier algo diferente ou vazio, ajusta)
+            const locSelect = document.getElementById('f-local');
+            const locBase = (item.localizacao || '').toUpperCase();
+            if (['ES', 'MG', 'RJ', 'SP'].some(uf => locBase.includes(uf))) {
+                for (let opt of locSelect.options) {
+                    if (locBase.includes(opt.value)) {
+                        locSelect.value = opt.value;
+                        break;
+                    }
+                }
+            } else {
+                locSelect.value = '';
+            }
+
+            // Usuário vindo da base
             document.getElementById('f-usuario').value = item.usuario;
 
             document.getElementById('loc-changed-badge').classList.add('hidden');
@@ -373,14 +395,13 @@
             document.getElementById('btn-salvar').removeAttribute('disabled');
         }
 
-        // Monitorar se Localização ou Usuário foram alterados pelo usuário
         function checkChanges() {
             if (!selectedAsset) return;
 
             const currentLocal = document.getElementById('f-local').value.trim();
             const currentUsuario = document.getElementById('f-usuario').value.trim();
 
-            if (currentLocal !== String(selectedAsset.localizacao)) {
+            if (currentLocal && !String(selectedAsset.localizacao).toUpperCase().includes(currentLocal)) {
                 document.getElementById('loc-changed-badge').classList.remove('hidden');
             } else {
                 document.getElementById('loc-changed-badge').classList.add('hidden');
@@ -400,31 +421,27 @@
             const condicao = document.getElementById('f-condicao').value;
             const destino = document.getElementById('f-destino').value;
             const obs = document.getElementById('f-obs').value;
-            const novaLocalizacao = document.getElementById('f-local').value.trim();
+            const novaLocalizacao = document.getElementById('f-local').value;
             const novoUsuario = document.getElementById('f-usuario').value.trim();
 
             const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
 
-            // Verificar se houve alteração real
             const localFoiAlterado = novaLocalizacao !== String(selectedAsset.localizacao);
             const usuarioFoiAlterado = novoUsuario !== String(selectedAsset.usuario);
 
-            if ((localFoiAlterado || usuarioFoiAlterado)) {
+            if (localFoiAlterado || usuarioFoiAlterado) {
                 const confirmou = confirm(`⚠️ Você alterou dados do cadastro original!\n\n- Localização Original: "${selectedAsset.localizacao}" ➔ Nova: "${novaLocalizacao}"\n- Usuário Original: "${selectedAsset.usuario}" ➔ Novo: "${novoUsuario}"\n\nDeseja confirmar e registrar essa alteração no relatório?`);
                 if (!confirmou) return;
             }
 
             const auditRecord = {
                 ...selectedAsset,
-                // Registra os dados finais revisados
                 localizacao: novaLocalizacao,
                 usuario: novoUsuario,
-                // Registra o status da alteração para auditoria clara no Excel
                 localizacao_original: selectedAsset.localizacao,
                 usuario_original: selectedAsset.usuario,
                 alterou_localizacao: localFoiAlterado ? 'SIM' : 'NÃO',
                 alterou_usuario: usuarioFoiAlterado ? 'SIM' : 'NÃO',
-                // Demais dados de triage
                 condicao,
                 defeitos: defeitosChecked || 'Nenhum',
                 destino,
