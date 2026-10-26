@@ -42,7 +42,7 @@
                 <div id="suggestions-box" class="hidden mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 absolute w-full divide-y divide-slate-100"></div>
             </div>
 
-            <!-- Formulário de Triage (Preenchimento Automático + Editáveis) -->
+            <!-- Formulário de Triage -->
             <form id="triage-form" onsubmit="saveAudit(event)" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
                 <h2 class="font-semibold text-slate-700 border-b pb-2 text-sm flex justify-between items-center">
                     <span>Dados do Equipamento</span>
@@ -53,7 +53,7 @@
                 <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
                         <span class="text-slate-400 block">Nome:</span>
-                        <input type="text5" id="f-nome" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
+                        <input type="text" id="f-nome" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
                     <div>
                         <span class="text-slate-400 block">Nº Ativo / Inv:</span>
@@ -141,16 +141,16 @@
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                 <div class="flex justify-between items-center mb-3">
                     <h2 class="font-semibold text-slate-700 text-sm">Ativos na Memória</h2>
-                    <button onclick="clearDatabase()" class="text-xs text-red-600 hover:underline">Limpar Base</button>
+                    <button onclick="clearDatabase()" class="text-xs text-red-600 hover:underline font-medium">Limpar Toda a Base</button>
                 </div>
                 <input type="text" id="db-filter" placeholder="Filtrar lista carregada..." oninput="renderDatabaseTable()" class="w-full p-2 border rounded-lg text-xs mb-3">
                 <div class="max-h-60 overflow-y-auto border rounded-lg">
                     <table class="w-full text-left text-xs divide-y divide-slate-200">
                         <thead class="bg-slate-50 sticky top-0">
                             <tr>
-                                <th class="p-2 font-medium text-slate-600">Categoria</th>
                                 <th class="p-2 font-medium text-slate-600">Identificação</th>
                                 <th class="p-2 font-medium text-slate-600">Modelo</th>
+                                <th class="p-2 font-medium text-slate-600 text-right">Ação</th>
                             </tr>
                         </thead>
                         <tbody id="db-table-body" class="divide-y divide-slate-100">
@@ -178,6 +178,7 @@
 
     <!-- Script de Funcionamento -->
     <script>
+        // Começa vazio se não houver dados salvos no navegador
         let globalAssets = JSON.parse(localStorage.getItem('inv_assets')) || [];
         let auditedAssets = JSON.parse(localStorage.getItem('inv_audited')) || [];
         let selectedAsset = null;
@@ -186,25 +187,17 @@
         renderDatabaseTable();
         renderAuditedList();
 
-        // Alternar Abas
         function switchTab(tab) {
             ['triage', 'database', 'audited'].forEach(t => {
                 document.getElementById(`content-${t}`).classList.add('hidden');
-                document.getElementById(`tab-${t}`).classList.remove('text-indigo-600', 'border-indigo-600', 'font-semibold');
-                document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'border-transparent', 'font-medium');
+                document.getElementById(`tab-${t}`).classList.remove('text-indigo-600', 'border-indigo-600', 'font-semibold'); document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'border-transparent', 'font-medium');
             });
-            document.getElementById(`content-${tab}`).classList.remove('hidden');
-            document.getElementById(`tab-${tab}`).classList.add('text-indigo-600', 'border-indigo-600', 'font-semibold');
-            document.getElementById(`tab-${tab}`).classList.remove('text-slate-500', 'border-transparent', 'font-medium');
-        }
-
-        // Atualizar Contadores
-        function updateCounts() {
-            document.getElementById('total-loaded').innerText = `${globalAssets.length} ativos carregados`;
+            document.getElementById(`content-${tab}`).classList.remove('hidden'); document.getElementById(`tab-${tab}`).classList.add('text-indigo-600', 'border-indigo-600', 'font-semibold');
+            document.getElementById(`tab-${tab}`).classList.remove('text-slate-500', 'border-transparent', 'font-medium'); }  function updateCounts() { document.getElementById('total-loaded').innerText = `${globalAssets.length} ativos carregados`;
             document.getElementById('audit-count').innerText = auditedAssets.length;
         }
 
-        // Leitor de Excel (Acumulativo)
+        // Leitor de Excel (Acumulativo e sem exemplos falsos)
         document.getElementById('excel-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -219,8 +212,7 @@
                     const json = XLSX.utils.sheet_to_json(worksheet);
 
                     let addedCount = 0;
-                    json.forEach(row => {
-                        // Tentar mapear colunas flexíveis dos diferentes modelos de planilha (Notes, Telefones, Monitores)
+                    json.forEach((row, idx) => {
                         const nome = row['Nome'] || row['nome'] || '';
                         const ativo = row['Ativo'] || row['Número de inventário'] || row['ativo'] || '';
                         const sn = row['SN'] || row['Número de série'] || row['sn'] || '';
@@ -229,7 +221,6 @@
                         const usuario = row['Usuário'] || row['usuario'] || '';
                         const status = row['Status'] || row['status'] || '';
 
-                        // Determinar categoria padrão pelo nome do arquivo ou colunas
                         let categoria = 'Geral';
                         const lowerName = file.name.toLowerCase();
                         if (lowerName.includes('note')) categoria = 'Notebook';
@@ -238,7 +229,7 @@
                         else categoria = row['Tipo'] || 'Outro';
 
                         globalAssets.push({
-                            id: Math.random().toString(36.substring(2, 9)),
+                            id: 'item_' + Math.random().toString(36).substring(2, 9),
                             categoria,
                             nome: String(nome),
                             ativo: String(ativo),
@@ -272,6 +263,13 @@
             }
         }
 
+        function deleteSingleAsset(id) {
+            globalAssets = globalAssets.filter(item => item.id !== id);
+            localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+            updateCounts();
+            renderDatabaseTable();
+        }
+
         function renderDatabaseTable() {
             const filter = (document.getElementById('db-filter').value || '').toLowerCase();
             const tbody = document.getElementById('db-table-body');
@@ -280,7 +278,7 @@
                 a.ativo.toLowerCase().includes(filter) || 
                 a.sn.toLowerCase().includes(filter) ||
                 a.modelo.toLowerCase().includes(filter)
-            ).slice(f => f, 100); // mostrar até 100 para performance
+            ).slice(0, 100);
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo encontrado.</td></tr>`;
@@ -289,72 +287,9 @@
 
             tbody.innerHTML = filtered.map(item => `
                 <tr class="hover:bg-slate-50">
-                    <td class="p-2 font-medium text-slate-700">${item.categoria}</td>
-                    <td class="p-2 text-slate-600">${item.nome || item.ativo || item.sn}</td>
+                    <td class="p-2">
+                        <div class="font-bold text-slate-700">${item.nome || item.ativo || item.sn}</div>
+                        <div class="text-[10px] text-slate-400">${item.categoria} \vert{} Ativo:${item.ativo}</div>
+                    </td>
                     <td class="p-2 text-slate-500">${item.modelo}</td>
-                </tr>
-            `).join('');
-        }
-
-        // Sistema de Busca em Tempo Real na Triage
-        const searchInput = document.getElementById('search-input');
-        const suggestionsBox = document.getElementById('suggestions-box');
-
-        searchInput.addEventListener('input', function() {
-            const query = this.value.trim().toLowerCase();
-            if (query.length < 1) {
-                suggestionsBox.classList.add('hidden');
-                return;
-            }
-
-            const matches = globalAssets.filter(a => 
-                a.nome.toLowerCase().includes(query) || 
-                a.ativo.toLowerCase().includes(query) || 
-                a.sn.toLowerCase().includes(query)
-            ).slice(0, 10);
-
-            if (matches.length === 0) {
-                suggestionsBox.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum equipamento correspondente.</div>`;
-            } else {
-                suggestionsBox.innerHTML = matches.map(item => `
-                    <div onclick='selectAssetItem(${JSON.stringify(item)})' class="p-2.5 hover:bg-indigo-50 cursor-pointer text-xs">
-                        <div class="font-bold text-indigo-700">${item.nome || 'Sem Nome'} <span class="text-slate-400 font-normal">(${item.categoria})</span></div>
-                        <div class="text-slate-500">Ativo: ${item.ativo} | SN: ${item.sn} | Modelo: ${item.modelo}</div>
-                    </div>
-                `).join('');
-            }
-            suggestionsBox.classList.remove('hidden');
-        });
-
-        function selectAssetItem(item) {
-            selectedAsset = item;
-            document.getElementById('f-nome').value = item.nome;
-            document.getElementById('f-ativo').value = item.ativo;
-            document.getElementById('f-sn').value = item.sn;
-            document.getElementById('f-modelo').value = item.modelo;
-            document.getElementById('f-local').value = item.localizacao;
-            document.getElementById('f-usuario').value = item.usuario;
-            document.getElementById('asset-cat').innerText = item.categoria;
-
-            searchInput.value = item.nome || item.ativo || item.sn;
-            suggestionsBox.classList.add('hidden');
-            document.getElementById('btn-salvar').removeAttribute('disabled');
-        }
-
-        // Salvar Triage
-        function saveAudit(e) {
-            e.preventDefault();
-            if (!selectedAsset) return;
-
-            const condicao = document.getElementById('f-condicao').value;
-            const destino = document.getElementById('f-destino').value;
-            const obs = document.getElementById('f-obs').value;
-
-            const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
-
-            const auditRecord = {
-                ...selectedAsset,
-                condicao,
-                defeitos: defeitosChecked || 'Nenhum',
-                destino,
-                observ
+                    <td class="p-2 text-
