@@ -68,7 +68,7 @@
                         <input type="text" id="f-modelo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
                     </div>
 
-                    <!-- Localização (Bloqueada, clica para destravar e selecionar ES, MG, RJ, SP) -->
+                    <!-- Localização -->
                     <div>
                         <div class="flex justify-between">
                             <span class="text-slate-500 font-bold block">Localização:</span>
@@ -85,7 +85,7 @@
                         </div>
                     </div>
 
-                    <!-- Usuário (Bloqueado, clica para destravar e selecionar da base) -->
+                    <!-- Usuário -->
                     <div>
                         <div class="flex justify-between">
                             <span class="text-slate-500 font-bold block">Usuário:</span>
@@ -204,6 +204,8 @@
         let globalAssets = JSON.parse(localStorage.getItem('inv_assets')) || [];
         let auditedAssets = JSON.parse(localStorage.getItem('inv_audited')) || [];
         let selectedAsset = null;
+        let localUnlocked = false;
+        let userUnlocked = false;
 
         updateCounts();
         renderDatabaseTable();
@@ -301,7 +303,6 @@
             selectUsr.innerHTML = users.map(u => `<option value="${u}">${u}</option>`).join('');
         }
 
-        // Popular usuários ao carregar a página se já houver dados na memória
         populateUserDropdown();
 
         function clearDatabase() {
@@ -382,14 +383,17 @@
 
         function selectAssetItem(item) {
             selectedAsset = item;
+            localUnlocked = false;
+            userUnlocked = false;
+
             document.getElementById('f-nome').value = item.nome;
             document.getElementById('f-ativo').value = item.ativo;
             document.getElementById('f-sn').value = item.sn;
             document.getElementById('f-modelo').value = item.modelo;
             
-            // Resetar campos para modo bloqueado (texto)
+            // Estado inicial bloqueado (mostra texto)
             document.getElementById('f-local-text').value = item.localizacao || '';
-            document.getElementById('f-local-select').value = item.localizacao || 'ES';
+            document.getElementById('f-local-select').value = ['ES','MG','RJ','SP'].includes(item.localizacao) ? item.localizacao : 'ES';
             document.getElementById('f-local-text').classList.remove('hidden');
             document.getElementById('f-local-select').classList.add('hidden');
 
@@ -407,25 +411,29 @@
             document.getElementById('btn-salvar').removeAttribute('disabled');
         }
 
-        // Desbloquear campo ao clicar com confirmação
+        // Destravar campo apenas se o usuário confirmar no prompt
         function unlockField(field) {
             if (!selectedAsset) return;
+
+            if (field === 'local' && localUnlocked) return;
+            if (field === 'usuario' && userUnlocked) return;
 
             const confirmou = confirm(`⚠️ Deseja realmente alterar o campo "${field === 'local' ? 'Localização' : 'Usuário'}" deste equipamento?`);
             if (!confirmou) return;
 
             if (field === 'local') {
+                localUnlocked = true;
                 document.getElementById('f-local-text').classList.add('hidden');
                 document.getElementById('f-local-select').classList.remove('hidden');
                 document.getElementById('f-local-select').focus();
             } else if (field === 'usuario') {
+                userUnlocked = true;
                 document.getElementById('f-usuario-text').classList.add('hidden');
                 document.getElementById('f-usuario-select').classList.remove('hidden');
                 document.getElementById('f-usuario-select').focus();
             }
         }
 
-        // Sincronizar escolha da lista suspensa
         function syncField(field) {
             if (field === 'local') {
                 const val = document.getElementById('f-local-select').value;
@@ -487,6 +495,8 @@
             document.getElementById('loc-changed-badge').classList.add('hidden');
             document.getElementById('usr-changed-badge').classList.add('hidden');
             selectedAsset = null;
+            localUnlocked = false;
+            userUnlocked = false;
             document.getElementById('asset-cat').innerText = '';
             alert('Equipamento auditado e salvo com sucesso!');
         }
