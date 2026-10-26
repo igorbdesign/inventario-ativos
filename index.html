@@ -251,4 +251,180 @@
                         else categoria = row['Tipo'] || 'Outro';
 
                         globalAssets.push({
-                            id: 'item_' + Math
+                            id: 'item_' + Math.random().toString(36).substring(2, 9),
+                            categoria,
+                            nome: String(nome),
+                            ativo: String(ativo),
+                            sn: String(sn),
+                            modelo: String(modelo),
+                            localizacao: String(localizacao),
+                            usuario: String(usuario),
+                            status_origem: String(status)
+                        });
+                        addedCount++;
+                    });
+
+                    localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+                    updateCounts();
+                    renderDatabaseTable();
+                    document.getElementById('import-status').innerText = `Sucesso! +${addedCount} itens adicionados de "${file.name}".`;
+                    e.target.value = '';
+                } catch (err) {
+                    alert('Erro ao ler arquivo Excel: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function clearDatabase() {
+            if (confirm('Deseja realmente limpar todos os ativos carregados?')) {
+                globalAssets = [];
+                localStorage.removeItem('inv_assets');
+                updateCounts();
+                renderDatabaseTable();
+            }
+        }
+
+        function deleteSingleAsset(id) {
+            globalAssets = globalAssets.filter(item => item.id !== id);
+            localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+            updateCounts();
+            renderDatabaseTable();
+        }
+
+        function renderDatabaseTable() {
+            const filter = (document.getElementById('db-filter').value || '').toLowerCase();
+            const tbody = document.getElementById('db-table-body');
+            const filtered = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(filter) || 
+                a.ativo.toLowerCase().includes(filter) || 
+                a.sn.toLowerCase().includes(filter) ||
+                a.modelo.toLowerCase().includes(filter)
+            ).slice(0, 100);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo encontrado.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2">
+                        <div class="font-bold text-slate-700">${item.nome || item.ativo || item.sn}</div>
+                        <div class="text-[10px] text-slate-400">${item.categoria} | Ativo: ${item.ativo}</div>
+                    </td>
+                    <td class="p-2 text-slate-500">${item.modelo}</td>
+                    <td class="p-2 text-right">
+                        <button type="button" onclick="deleteSingleAsset('${item.id}')" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 bg-red-50 rounded">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        const searchInput = document.getElementById('search-input');
+        const suggestionsBox = document.getElementById('suggestions-box');
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query.length < 1) {
+                suggestionsBox.classList.add('hidden');
+                return;
+            }
+
+            const matches = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(query) || 
+                a.ativo.toLowerCase().includes(query) || 
+                a.sn.toLowerCase().includes(query)
+            ).slice(0, 10);
+
+            if (matches.length === 0) {
+                suggestionsBox.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum equipamento correspondente na base.</div>`;
+            } else {
+                suggestionsBox.innerHTML = matches.map(item => `
+                    <div onclick='selectAssetItem(${JSON.stringify(item)})' class="p-2.5 hover:bg-indigo-50 cursor-pointer text-xs">
+                        <div class="font-bold text-indigo-700">${item.nome || 'Sem Nome'} <span class="text-slate-400 font-normal">(${item.categoria})</span></div>
+                        <div class="text-slate-500">Ativo: ${item.ativo} | SN: ${item.sn} | Modelo: ${item.modelo}</div>
+                    </div>
+                `).join('');
+            }
+            suggestionsBox.classList.remove('hidden');
+        });
+
+        function selectAssetItem(item) {
+            selectedAsset = item;
+            document.getElementById('f-nome').value = item.nome;
+            document.getElementById('f-ativo').value = item.ativo;
+            document.getElementById('f-sn').value = item.sn;
+            document.getElementById('f-modelo').value = item.modelo;
+            document.getElementById('f-local').value = item.localizacao;
+            document.getElementById('f-usuario').value = item.usuario;
+            document.getElementById('asset-cat').innerText = item.categoria;
+
+            searchInput.value = item.nome || item.ativo || item.sn;
+            suggestionsBox.classList.add('hidden');
+            document.getElementById('btn-salvar').removeAttribute('disabled');
+        }
+
+        function saveAudit(e) {
+            e.preventDefault();
+            if (!selectedAsset) return;
+
+            const condicao = document.getElementById('f-condicao').value;
+            const destino = document.getElementById('f-destino').value;
+            const obs = document.getElementById('f-obs').value;
+            const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
+
+            const auditRecord = {
+                ...selectedAsset,
+                condicao,
+                defeitos: defeitosChecked || 'Nenhum',
+                destino,
+                observacoes_triage: obs,
+                data_auditoria: new Date().toLocaleString('pt-BR')
+            };
+
+            auditedAssets.unshift(auditRecord);
+            localStorage.setItem('inv_audited', JSON.stringify(auditedAssets));
+            renderAuditedList();
+            updateCounts();
+
+            document.getElementById('triage-form').reset();
+            searchInput.value = '';
+            document.getElementById('btn-salvar').setAttribute('disabled', 'true');
+            selectedAsset = null;
+            document.getElementById('asset-cat').innerText = '';
+            alert('Equipamento auditado com sucesso!');
+        }
+
+        function renderAuditedList() {
+            const listDiv = document.getElementById('audited-list');
+            if (auditedAssets.length === 0) {
+                listDiv.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento auditado nesta sessão.</p>`;
+                return;
+            }
+
+            listDiv.innerHTML = auditedAssets.map((item) => `
+                <div class="p-3 bg-slate-50 border rounded-lg text-xs space-y-1 relative">
+                    <div class="font-bold text-slate-700">${item.nome || item.ativo} (${item.categoria})</div>
+                    <div class="text-slate-500">Condição: <span class="font-semibold text-slate-700">${item.condicao}</span> | Destino: <span class="font-semibold text-indigo-600">${item.destino}</span></div>
+                    <div class="text-slate-500">Defeitos: ${item.defeitos}</div>
+                    ${item.observacoes_triage ? `<div class="text-slate-400 italic">Obs: ${item.observacoes_triage}</div>` : ''}
+                    <div class="text-[10px] text-slate-400 text-right">${item.data_auditoria}</div>
+                </div>
+            `).join('');
+        }
+
+        function exportToExcel() {
+            if (auditedAssets.length ===0) {
+                alert('Não há dados auditados para exportar.');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(auditedAssets);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Relatorio_Triage");
+            XLSX.writeFile(workbook, "Relatorio_Inventario_Triage.xlsx");
+        }
+    </script>
+</body>
+</html>
