@@ -166,4 +166,436 @@
                     <h2 class="font-semibold text-slate-700 text-sm">Ativos na Memória</h2>
                     <button type="button" onclick="clearDatabase()" class="text-xs text-red-600 hover:underline font-medium">Limpar Toda a Base</button>
                 </div>
-                <input type="text" id="db-filter" placeholder="Filtrar lista carregada..." oninput="renderDatabaseTable()" class="w-full p-2 border rounded-lg text-xs mb-3
+                <input type="text" id="db-filter" placeholder="Filtrar lista carregada..." oninput="renderDatabaseTable()" class="w-full p-2 border rounded-lg text-xs mb-3">
+                <div class="max-h-60 overflow-y-auto border rounded-lg">
+                    <table class="w-full text-left text-xs divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="p-2 font-medium text-slate-600">Identificação</th>
+                                <th class="p-2 font-medium text-slate-600">Modelo</th>
+                                <th class="p-2 font-medium text-slate-600 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="db-table-body" class="divide-y divide-slate-100">
+                            <tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo importado ainda.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: AUDITED -->
+        <div id="content-audited" class="tab-content hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="font-semibold text-slate-700 text-sm">Relatório e Filtros de Conferência</h2>
+                    <button type="button" onclick="clearAuditedList()" class="text-xs text-red-600 hover:underline font-medium">Limpar Histórico</button>
+                </div>
+                
+                <!-- Filtros para Visualização e Exportação -->
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Filtrar por Categoria</label>
+                        <select id="filter-cat" onchange="renderAuditedList()" class="w-full p-2 bg-slate-50 border rounded-lg font-medium">
+                            <option value="">Todas as Categorias</option>
+                            <option value="Notebook">Notebook</option>
+                            <option value="Telefone">Telefone</option>
+                            <option value="Monitor">Monitor</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Filtrar por Destino/Status</label>
+                        <select id="filter-dest" onchange="renderAuditedList()" class="w-full p-2 bg-slate-50 border rounded-lg font-medium">
+                            <option value="">Todos os Destinos</option>
+                            <option value="Estoque / Pronto para Uso">Estoque / Pronto</option>
+                            <option value="Encaminhar para Manutenção">Manutenção</option>
+                            <option value="Descarte / Sucata">Descarte / Sucata</option>
+                            <option value="Doação / Colaborador">Doação</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-2 border-t">
+                    <span id="filtered-count" class="text-xs font-semibold text-slate-600">0 itens exibidos</span>
+                    <button type="button" onclick="exportToExcel()" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-medium shadow hover:bg-emerald-700 transition">Exportar Excel Filtrado (.xlsx)</button>
+                </div>
+            </div>
+
+            <!-- Lista Dinâmica de Auditados -->
+            <div id="audited-list" class="space-y-2 max-h-96 overflow-y-auto">
+                <p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento auditado nesta sessão.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script de Funcionamento -->
+    <script>
+        let globalAssets = JSON.parse(localStorage.getItem('inv_assets')) || [];
+        let auditedAssets = JSON.parse(localStorage.getItem('inv_audited')) || [];
+        let selectedAsset = null;
+        let localUnlocked = false;
+        let userUnlocked = false;
+
+        updateCounts();
+        renderDatabaseTable();
+        renderAuditedList();
+
+        function switchTab(tabName) {
+            document.getElementById('suggestions-box').classList.add('hidden');
+
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(el => el.classList.add('hidden'));
+
+            ['triage', 'database', 'audited'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (btn) {
+                    btn.className = "flex-1 py-4 text-center font-medium text-slate-500 border-b-4 border-transparent text-sm cursor-pointer";
+                }
+            });
+
+            const targetContent = document.getElementById(`content-${tabName}`);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+
+            const targetBtn = document.getElementById(`tab-${tabName}`);
+            if (targetBtn) {
+                targetBtn.className = "flex-1 py-4 text-center font-bold text-indigo-600 border-b-4 border-indigo-600 text-sm bg-indigo-50/50 cursor-pointer";
+            }
+        }
+
+        function updateCounts() {
+            document.getElementById('total-loaded').innerText = `${globalAssets.length} ativos carregados`;
+            document.getElementById('audit-count').innerText = auditedAssets.length;
+        }
+
+        document.getElementById('excel-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    let addedCount = 0;
+                    json.forEach((row) => {
+                        const nome = row['Nome'] || row['nome'] || '';
+                        const ativo = row['Ativo'] || row['Número de inventário'] || row['ativo'] || '';
+                        const sn = row['SN'] || row['Número de série'] || row['sn'] || '';
+                        const modelo = row['Modelo'] || row['modelo'] || '';
+                        const localizacao = row['Localização'] || row['localizacao'] || '';
+                        const usuario = row['Usuário'] || row['usuario'] || '';
+                        const status = row['Status'] || row['status'] || '';
+
+                        let categoria = 'Geral';
+                        const lowerName = file.name.toLowerCase();
+                        if (lowerName.includes('note')) categoria = 'Notebook';
+                        else if (lowerName.includes('telefone') || lowerName.includes('celular')) categoria = 'Telefone';
+                        else if (lowerName.includes('monitor')) categoria = 'Monitor';
+                        else categoria = row['Tipo'] || 'Outro';
+
+                        globalAssets.push({
+                            id: 'item_' + Math.random().toString(36).substring(2, 9),
+                            categoria,
+                            nome: String(nome),
+                            ativo: String(ativo),
+                            sn: String(sn),
+                            modelo: String(modelo),
+                            localizacao: String(localizacao),
+                            usuario: String(usuario),
+                            status_origem: String(status)
+                        });
+                        addedCount++;
+                    });
+
+                    localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+                    updateCounts();
+                    renderDatabaseTable();
+                    populateUserDropdown();
+                    document.getElementById('import-status').innerText = `Sucesso! +${addedCount} itens adicionados de "${file.name}".`;
+                    e.target.value = '';
+                } catch (err) {
+                    alert('Erro ao ler arquivo Excel: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function populateUserDropdown() {
+            const users = [...new Set(globalAssets.map(a => a.usuario).filter(u => u && u !== 'undefined' && u !== 'nan'))].sort();
+            const selectUsr = document.getElementById('f-usuario-select');
+            selectUsr.innerHTML = users.map(u => `<option value="${u}">${u}</option>`).join('');
+        }
+
+        populateUserDropdown();
+
+        function clearDatabase() {
+            if (confirm('Deseja realmente limpar todos os ativos carregados?')) {
+                globalAssets = [];
+                localStorage.removeItem('inv_assets');
+                updateCounts();
+                renderDatabaseTable();
+                populateUserDropdown();
+            }
+        }
+
+        function clearAuditedList() {
+            if (confirm('Deseja realmente limpar todo o histórico de equipamentos auditados?')) {
+                auditedAssets = [];
+                localStorage.removeItem('inv_audited');
+                updateCounts();
+                renderAuditedList();
+            }
+        }
+
+        function deleteSingleAsset(id) {
+            globalAssets = globalAssets.filter(item => item.id !== id);
+            localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
+            updateCounts();
+            renderDatabaseTable();
+            populateUserDropdown();
+        }
+
+        function renderDatabaseTable() {
+            const filter = (document.getElementById('db-filter').value || '').toLowerCase();
+            const tbody = document.getElementById('db-table-body');
+            const filtered = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(filter) || 
+                a.ativo.toLowerCase().includes(filter) || 
+                a.sn.toLowerCase().includes(filter) ||
+                a.modelo.toLowerCase().includes(filter)
+            ).slice(0, 100);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo encontrado.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2">
+                        <div class="font-bold text-slate-700">${item.nome || item.ativo || item.sn}</div>
+                        <div class="text-[10px] text-slate-400">${item.categoria} | Ativo: ${item.ativo}</div>
+                    </td>
+                    <td class="p-2 text-slate-500">${item.modelo}</td>
+                    <td class="p-2 text-right">
+                        <button type="button" onclick="deleteSingleAsset('${item.id}')" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 bg-red-50 rounded">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        const searchInput = document.getElementById('search-input');
+        const suggestionsBox = document.getElementById('suggestions-box');
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query.length < 1) {
+                suggestionsBox.classList.add('hidden');
+                return;
+            }
+
+            const matches = globalAssets.filter(a => 
+                a.nome.toLowerCase().includes(query) || 
+                a.ativo.toLowerCase().includes(query) || 
+                a.sn.toLowerCase().includes(query)
+            ).slice(0, 10);
+
+            if (matches.length === 0) {
+                suggestionsBox.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum equipamento correspondente na base.</div>`;
+            } else {
+                suggestionsBox.innerHTML = matches.map(item => `
+                    <div onclick='selectAssetItem(${JSON.stringify(item)})' class="p-2.5 hover:bg-indigo-50 cursor-pointer text-xs">
+                        <div class="font-bold text-indigo-700">${item.nome || 'Sem Nome'} <span class="text-slate-400 font-normal">(${item.categoria})</span></div>
+                        <div class="text-slate-500">Ativo: ${item.ativo} | SN: ${item.sn} | Modelo: ${item.modelo}</div>
+                    </div>
+                `).join('');
+            }
+            suggestionsBox.classList.remove('hidden');
+        });
+
+        function selectAssetItem(item) {
+            selectedAsset = item;
+            localUnlocked = false;
+            userUnlocked = false;
+
+            document.getElementById('f-nome').value = item.nome;
+            document.getElementById('f-ativo').value = item.ativo;
+            document.getElementById('f-sn').value = item.sn;
+            document.getElementById('f-modelo').value = item.modelo;
+            
+            document.getElementById('f-local-text').value = item.localizacao || '';
+            document.getElementById('f-local-select').value = ['ES','MG','RJ','SP'].includes(item.localizacao) ? item.localizacao : 'ES';
+            document.getElementById('f-local-text').classList.remove('hidden');
+            document.getElementById('f-local-select').classList.add('hidden');
+
+            document.getElementById('f-usuario-text').value = item.usuario || '';
+            document.getElementById('f-usuario-select').value = item.usuario || '';
+            document.getElementById('f-usuario-text').classList.remove('hidden');
+            document.getElementById('f-usuario-select').classList.add('hidden');
+
+            document.getElementById('loc-changed-badge').classList.add('hidden');
+            document.getElementById('usr-changed-badge').classList.add('hidden');
+
+            document.getElementById('asset-cat').innerText = item.categoria;
+            searchInput.value = item.nome || item.ativo || item.sn;
+            suggestionsBox.classList.add('hidden');
+            document.getElementById('btn-salvar').removeAttribute('disabled');
+        }
+
+        function unlockField(field) {
+            if (!selectedAsset) return;
+            if (field === 'local' && localUnlocked) return;
+            if (field === 'usuario' && userUnlocked) return;
+
+            const confirmou = confirm(`⚠️ Deseja realmente alterar o campo "${field === 'local' ? 'Localização' : 'Usuário'}" deste equipamento?`);
+            if (!confirmou) return;
+
+            if (field === 'local') {
+                localUnlocked = true;
+                document.getElementById('f-local-text').classList.add('hidden');
+                document.getElementById('f-local-select').classList.remove('hidden');
+                document.getElementById('f-local-select').focus();
+            } else if (field === 'usuario') {
+                userUnlocked = true;
+                document.getElementById('f-usuario-text').classList.add('hidden');
+                document.getElementById('f-usuario-select').classList.remove('hidden');
+                document.getElementById('f-usuario-select').focus();
+            }
+        }
+
+        function syncField(field) {
+            if (field === 'local') {
+                const val = document.getElementById('f-local-select').value;
+                document.getElementById('f-local-text').value = val;
+                if (val !== String(selectedAsset.localizacao)) {
+                    document.getElementById('loc-changed-badge').classList.remove('hidden');
+                } else {
+                    document.getElementById('loc-changed-badge').classList.add('hidden');
+                }
+            } else if (field === 'usuario') {
+                const val = document.getElementById('f-usuario-select').value;
+                document.getElementById('f-usuario-text').value = val;
+                if (val !== String(selectedAsset.usuario)) {
+                    document.getElementById('usr-changed-badge').classList.remove('hidden');
+                } else {
+                    document.getElementById('usr-changed-badge').classList.add('hidden');
+                }
+            }
+        }
+
+        function saveAudit(e) {
+            e.preventDefault();
+            if (!selectedAsset) return;
+
+            const condicao = document.getElementById('f-condicao').value;
+            const destino = document.getElementById('f-destino').value;
+            const obs = document.getElementById('f-obs').value;
+            const novaLocalizacao = document.getElementById('f-local-text').value.trim();
+            const novoUsuario = document.getElementById('f-usuario-text').value.trim();
+
+            const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
+
+            const localFoiAlterado = novaLocalizacao !== String(selectedAsset.localizacao);
+            const usuarioFoiAlterado = novoUsuario !== String(selectedAsset.usuario);
+
+            const auditRecord = {
+                ...selectedAsset,
+                localizacao: novaLocalizacao,
+                usuario: novoUsuario,
+                localizacao_original: selectedAsset.localizacao,
+                usuario_original: selectedAsset.usuario,
+                alterou_localizacao: localFoiAlterado ? 'SIM' : 'NÃO',
+                alterou_usuario: usuarioFoiAlterado ? 'SIM' : 'NÃO',
+                condicao,
+                defeitos: defeitosChecked || 'Nenhum',
+                destino,
+                observacoes_triage: obs,
+                data_auditoria: new Date().toLocaleString('pt-BR')
+            };
+
+            auditedAssets.unshift(auditRecord);
+            localStorage.setItem('inv_audited', JSON.stringify(auditedAssets));
+            renderAuditedList();
+            updateCounts();
+
+            document.getElementById('triage-form').reset();
+            searchInput.value = '';
+            document.getElementById('btn-salvar').setAttribute('disabled', 'true');
+            document.getElementById('loc-changed-badge').classList.add('hidden');
+            document.getElementById('usr-changed-badge').classList.add('hidden');
+            selectedAsset = null;
+            localUnlocked = false;
+            userUnlocked = false;
+            document.getElementById('asset-cat').innerText = '';
+            alert('Equipamento auditado e salvo com sucesso!');
+        }
+
+        function getFilteredAudited() {
+            const catFilter = document.getElementById('filter-cat').value;
+            const destFilter = document.getElementById('filter-dest').value;
+
+            return auditedAssets.filter(item => {
+                const matchCat = !catFilter || item.categoria === catFilter;
+                const matchDest = !destFilter || item.destino === destFilter;
+                return matchCat && matchDest;
+            });
+        }
+
+        function renderAuditedList() {
+            const listDiv = document.getElementById('audited-list');
+            const catFilter = document.getElementById('filter-cat').value;
+            const destFilter = document.getElementById('filter-dest').value;
+
+            const filtered = getFilteredAudited();
+            
+            // Lógica ajustada do contador:
+            // Se houver filtro de Categoria, o total base é apenas os itens daquela categoria. Caso contrário, é o total geral.
+            let totalBase = auditedAssets.length;
+            if (catFilter) {
+                totalBase = auditedAssets.filter(item => item.categoria === catFilter).length;
+            }
+
+            document.getElementById('filtered-count').innerText = `${filtered.length} de ${totalBase} itens exibidos`;
+
+            if (filtered.length === 0) {
+                listDiv.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento correspondente aos filtros.</p>`;
+                return;
+            }
+
+            listDiv.innerHTML = filtered.map((item) => `
+                <div class="p-3 bg-slate-50 border rounded-lg text-xs space-y-1 relative">
+                    <div class="font-bold text-slate-700 flex justify-between">
+                        <span>${item.nome || item.ativo} (${item.categoria})</span>
+                        <span class="text-indigo-600 font-medium">${item.modelo}</span>
+                    </div>
+                    <div class="text-slate-500">Condição: <span class="font-semibold text-slate-700">${item.condicao}</span> | Destino: <span class="font-semibold text-indigo-600">${item.destino}</span></div>
+                    <div class="text-slate-500">Local: <span class="text-slate-700 font-medium">${item.localizacao}</span> ${item.alterou_localizacao === 'SIM' ? '<span class="text-amber-600 font-bold">(Alt)</span>' : ''} | Usuário: <span class="text-slate-700 font-medium">${item.usuario}</span></div>
+                    <div class="text-slate-500">Defeitos: ${item.defeitos}</div>
+                    ${item.observacoes_triage ? `<div class="text-slate-400 italic">Obs: ${item.observacoes_triage}</div>` : ''}
+                    <div class="text-[10px] text-slate-400 text-right">${item.data_auditoria}</div>
+                </div>
+            `).join('');
+        }
+
+        function exportToExcel() {
+            const filtered = getFilteredAudited();
+            if (filtered.length === 0) {
+                alert('Não há dados filtrados para exportar.');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(filtered);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Relatorio_Triage");
+            XLSX.writeFile(workbook, "Relatorio_Inventario_Triage_Filtrado.xlsx");
+        }
+    </script>
+</body>
+</html>
