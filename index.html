@@ -1,601 +1,353 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventário de Ativos - Triage Mobile</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS (XLSX) CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Estoque TI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans antialiased pb-24">
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
 
-    <!-- Header Principal -->
-    <header class="bg-indigo-600 text-white shadow-md p-4">
-        <div class="max-w-md mx-auto flex justify-between items-center">
-            <h1 class="font-bold text-lg">Inventário & Triage</h1>
-            <span id="total-loaded" class="text-xs bg-indigo-800 px-2.5 py-1 rounded-full font-medium">0 ativos carregados</span>
-        </div>
-    </header>
-
-    <!-- Abas de Navegação -->
-    <div class="bg-white shadow-sm border-b">
-        <div class="max-w-md mx-auto flex">
-            <button type="button" id="tab-triage" onclick="switchTab('triage')" class="flex-1 py-4 text-center font-bold text-indigo-600 border-b-4 border-indigo-600 text-sm bg-indigo-50/50 cursor-pointer">🔍 Triage</button>
-            <button type="button" id="tab-database" onclick="switchTab('database')" class="flex-1 py-4 text-center font-medium text-slate-500 border-b-4 border-transparent text-sm cursor-pointer">📁 Bases</button>
-            <button type="button" id="tab-audited" onclick="switchTab('audited')" class="flex-1 py-4 text-center font-medium text-slate-500 border-b-4 border-transparent text-sm cursor-pointer">📊 Auditados (<span id="audit-count">0</span>)</button>
-        </div>
+  <!-- Cabeçalho -->
+  <header class="bg-indigo-700 text-white p-4 shadow-md sticky top-0 z-10">
+    <div class="max-w-md mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-base font-bold">📦 Coletor de Almoxarifado</h1>
+        <p class="text-[10px] text-indigo-200">Sincronizado via GitHub</p>
+      </div>
+      <span id="totalContado" class="bg-indigo-900 text-white text-xs px-2.5 py-1 rounded-full font-bold">Total: 0</span>
     </div>
+  </header>
 
-    <!-- Main Container -->
-    <main class="max-w-md mx-auto p-4 space-y-4">
+  <main class="max-w-md mx-auto p-4 space-y-4">
 
-        <!-- TAB 1: TRIAGE -->
-        <div id="content-triage" class="tab-content space-y-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative">
-                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Buscar Ativo (Nome, Ativo ou SN)</label>
-                <div class="relative">
-                    <input type="text" id="search-input" autocomplete="off" placeholder="Digite nome, ativo ou SN..." class="w-full p-3 border rounded-lg bg-slate-50 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                </div>
-                <!-- Dropdown suggestions -->
-                <div id="suggestions-box" class="hidden mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl absolute left-0 right-0 z-50 divide-y divide-slate-100"></div>
-            </div>
+    <!-- Status do Carregamento NUVEM -->
+    <section id="statusNuvem" class="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-xs text-amber-800 font-medium">
+      ⏳ Carregando catálogo oficial do GitHub...
+    </section>
 
-            <!-- Formulário de Triage -->
-            <form id="triage-form" onsubmit="saveAudit(event)" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <h2 class="font-semibold text-slate-700 border-b pb-2 text-sm flex justify-between items-center">
-                    <span>Dados do Equipamento</span>
-                    <span id="asset-cat" class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
-                </h2>
+    <!-- 1. Categoria do Item -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">1. Categoria</h2>
+      
+      <div class="grid grid-cols-3 gap-2">
+        <button onclick="selecionarCategoria('notebook')" id="btnCatNotebook" class="cat-btn bg-indigo-50 border-2 border-indigo-600 text-indigo-800 p-2.5 rounded-xl font-bold text-xs text-center flex flex-col items-center justify-center gap-1 transition">
+          <span class="text-lg">💻</span> Notebooks
+        </button>
+        <button onclick="selecionarCategoria('ativo')" id="btnCatAtivo" class="cat-btn bg-slate-50 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-semibold text-xs text-center flex flex-col items-center justify-center gap-1 transition">
+          <span class="text-lg">📱</span> Ativos
+        </button>
+        <button onclick="selecionarCategoria('periferico')" id="btnCatPeriferico" class="cat-btn bg-slate-50 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-semibold text-xs text-center flex flex-col items-center justify-center gap-1 transition">
+          <span class="text-lg">🎧</span> Periféricos
+        </button>
+      </div>
+    </section>
 
-                <!-- Campos do Equipamento -->
-                <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                        <span class="text-slate-400 block">Nome:</span>
-                        <input type="text" id="f-nome" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block">Nº Ativo / Inv:</span>
-                        <input type="text" id="f-ativo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block">Serial Number:</span>
-                        <input type="text" id="f-sn" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block">Modelo:</span>
-                        <input type="text" id="f-modelo" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium">
-                    </div>
+    <!-- 2. Formulário Dinâmico -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">2. Lançamento</h2>
 
-                    <!-- Localização -->
-                    <div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500 font-bold block">Localização:</span>
-                            <span id="loc-changed-badge" class="hidden text-[10px] text-amber-600 font-bold">Alterado!</span>
-                        </div>
-                        <div id="container-local" onclick="unlockField('local')" class="cursor-pointer" title="Clique para alterar">
-                            <input type="text" id="f-local-text" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium cursor-pointer" placeholder="Selecione ativo...">
-                            <select id="f-local-select" class="hidden w-full bg-white p-2 rounded border border-indigo-300 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500" onchange="syncField('local')">
-                                <option value="ES">ES</option>
-                                <option value="MG">MG</option>
-                                <option value="RJ">RJ</option>
-                                <option value="SP">SP</option>
-                            </select>
-                        </div>
-                    </div>
+      <!-- Modelo -->
+      <div>
+        <label class="block text-xs font-medium text-slate-700 mb-1">Modelo / Item</label>
+        <select id="modeloSelect" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500">
+          <option value="">Aguardando catálogo...</option>
+        </select>
+      </div>
 
-                    <!-- Usuário -->
-                    <div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500 font-bold block">Usuário:</span>
-                            <span id="usr-changed-badge" class="hidden text-[10px] text-amber-600 font-bold">Alterado!</span>
-                        </div>
-                        <div id="container-usuario" onclick="unlockField('usuario')" class="cursor-pointer" title="Clique para alterar">
-                            <input type="text" id="f-usuario-text" readonly class="w-full bg-slate-100 p-2 rounded border text-slate-600 font-medium cursor-pointer" placeholder="Selecione ativo...">
-                            <select id="f-usuario-select" class="hidden w-full bg-white p-2 rounded border border-indigo-300 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500" onchange="syncField('usuario')">
-                                <!-- Preenchido dinamicamente com os usuários do banco -->
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <hr class="border-slate-100">
-
-                <!-- Campos de Triage (Editáveis) -->
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Condição Física/Funcional *</label>
-                        <select id="f-condicao" required class="w-full p-2.5 bg-white border rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500">
-                            <option value="">Selecione a condição...</option>
-                            <option value="Bom / Perfeito">Bom / Perfeito</option>
-                            <option value="Funcionando com Restrições">Funcionando com Restrições</option>
-                            <option value="Ruim / Defeituoso">Ruim / Defeituoso</option>
-                            <option value="Sucata / Descarte">Sucata / Descarte</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Defeitos / Problemas Encontrados</label>
-                        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border">
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Teclado Ruim/Apagado" class="rounded text-indigo-600"> <span>Teclado Ruim</span></label>
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Tela Quebrada/Manchada" class="rounded text-indigo-600"> <span>Tela Quebrada</span></label>
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Bateria Viciada/Ruim" class="rounded text-indigo-600"> <span>Bateria Ruim</span></label>
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Sem Carregador/Fonte" class="rounded text-indigo-600"> <span>Sem Carregador</span></label>
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Carcaça Danificada" class="rounded text-indigo-600"> <span>Carcaça Danificada</span></label>
-                            <label class="flex items-center space-x-2"><input type="checkbox" name="defeito" value="Não Liga / Placa" class="rounded text-indigo-600"> <span>Não Liga</span></label>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Destino / Ação Recomendada *</label>
-                        <select id="f-destino" required class="w-full p-2.5 bg-white border rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500">
-                            <option value="">Selecione o destino...</option>
-                            <option value="Estoque / Pronto para Uso">Estoque / Pronto para Uso</option>
-                            <option value="Encaminhar para Manutenção">Encaminhar para Manutenção</option>
-                            <option value="Descarte / Sucata">Descarte / Sucata</option>
-                            <option value="Doação / Colaborador">Doação / Colaborador</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Observações Adicionais</label>
-                        <textarea id="f-obs" rows="2" placeholder="Detalhes extras..." class="w-full p-2 border rounded-lg text-sm"></textarea>
-                    </div>
-                </div>
-
-                <button type="submit" id="btn-salvar" disabled class="w-full bg-indigo-600 text-white font-medium py-3 rounded-lg text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                    Salvar e Próximo Ativo
-                </button>
-            </form>
+      <!-- PAINEL NOTEBOOKS E ATIVOS -->
+      <div id="painelAtivos" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1">Estado</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg bg-slate-50 cursor-pointer">
+              <input type="radio" name="estadoAtivo" value="BOM" checked class="text-indigo-600">
+              <span class="text-xs font-bold text-emerald-700">✓ Bom Estado</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg bg-slate-50 cursor-pointer">
+              <input type="radio" name="estadoAtivo" value="RUIM" class="text-indigo-600">
+              <span class="text-xs font-bold text-red-600">✕ Defeito / Ruim</span>
+            </label>
+          </div>
         </div>
 
-        <!-- TAB 2: DATABASE -->
-        <div id="content-database" class="tab-content hidden space-y-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <h2 class="font-semibold text-slate-700 text-sm">Importar Planilhas Excel (.xlsx)</h2>
-                <p class="text-xs text-slate-500">Selecione seus arquivos um a um (Notes, Telefones, Monitores). Eles serão somados automaticamente na base de dados.</p>
-                
-                <input type="file" id="excel-file-input" accept=".xlsx, .xls" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
-                
-                <div id="import-status" class="text-xs font-medium text-emerald-600"></div>
+        <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" id="chkMsSp" class="w-4 h-4 text-amber-600 rounded">
+            <div>
+              <span class="text-xs font-bold text-amber-900 block">MS-SP (Formatado / Sem Imagem)</span>
+              <span class="text-[10px] text-amber-700 block">Marque se estiver formatado sem imagem</span>
             </div>
-
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-semibold text-slate-700 text-sm">Ativos na Memória</h2>
-                    <button type="button" onclick="clearDatabase()" class="text-xs text-red-600 hover:underline font-medium">Limpar Toda a Base</button>
-                </div>
-                <input type="text" id="db-filter" placeholder="Filtrar lista carregada..." oninput="renderDatabaseTable()" class="w-full p-2 border rounded-lg text-xs mb-3">
-                <div class="max-h-60 overflow-y-auto border rounded-lg">
-                    <table class="w-full text-left text-xs divide-y divide-slate-200">
-                        <thead class="bg-slate-50 sticky top-0">
-                            <tr>
-                                <th class="p-2 font-medium text-slate-600">Identificação</th>
-                                <th class="p-2 font-medium text-slate-600">Modelo</th>
-                                <th class="p-2 font-medium text-slate-600 text-right">Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody id="db-table-body" class="divide-y divide-slate-100">
-                            <tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo importado ainda.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+          </label>
         </div>
 
-        <!-- TAB 3: AUDITED -->
-        <div id="content-audited" class="tab-content hidden space-y-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <div class="flex justify-between items-center">
-                    <h2 class="font-semibold text-slate-700 text-sm">Relatório e Filtros de Conferência</h2>
-                    <button type="button" onclick="clearAuditedList()" class="text-xs text-red-600 hover:underline font-medium">Limpar Histórico</button>
-                </div>
-                
-                <!-- Filtros para Visualização e Exportação -->
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Filtrar por Categoria</label>
-                        <select id="filter-cat" onchange="renderAuditedList()" class="w-full p-2 bg-slate-50 border rounded-lg font-medium">
-                            <option value="">Todas as Categorias</option>
-                            <option value="Notebook">Notebook</option>
-                            <option value="Telefone">Telefone</option>
-                            <option value="Monitor">Monitor</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Filtrar por Destino/Status</label>
-                        <select id="filter-dest" onchange="renderAuditedList()" class="w-full p-2 bg-slate-50 border rounded-lg font-medium">
-                            <option value="">Todos os Destinos</option>
-                            <option value="Estoque / Pronto para Uso">Estoque / Pronto</option>
-                            <option value="Encaminhar para Manutenção">Manutenção</option>
-                            <option value="Descarte / Sucata">Descarte / Sucata</option>
-                            <option value="Doação / Colaborador">Doação</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-center pt-2 border-t">
-                    <span id="filtered-count" class="text-xs font-semibold text-slate-600">0 itens exibidos</span>
-                    <button type="button" onclick="exportToExcel()" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-medium shadow hover:bg-emerald-700 transition">Exportar Excel Filtrado (.xlsx)</button>
-                </div>
-            </div>
-
-            <!-- Lista Dinâmica de Auditados -->
-            <div id="audited-list" class="space-y-2 max-h-96 overflow-y-auto">
-                <p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento auditado nesta sessão.</p>
-            </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1">Quantidade</label>
+          <input type="number" id="qtdAtivoInput" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-indigo-700 text-center" />
         </div>
+      </div>
 
-    </main>
+      <!-- PAINEL PERIFÉRICOS -->
+      <div id="painelPerifericos" class="hidden space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-emerald-700 mb-1">Qtd Boas (OK)</label>
+            <input type="number" id="qtdBoaInput" value="0" min="0" class="w-full p-2.5 border border-emerald-300 bg-emerald-50 rounded-lg text-base font-bold text-emerald-800 text-center" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-red-600 mb-1">Qtd Ruins (Defeito)</label>
+            <input type="number" id="qtdRuimInput" value="0" min="0" class="w-full p-2.5 border border-red-300 bg-red-50 rounded-lg text-base font-bold text-red-700 text-center" />
+          </div>
+        </div>
+      </div>
 
-    <!-- Script de Funcionamento -->
-    <script>
-        let globalAssets = JSON.parse(localStorage.getItem('inv_assets')) || [];
-        let auditedAssets = JSON.parse(localStorage.getItem('inv_audited')) || [];
-        let selectedAsset = null;
-        let localUnlocked = false;
-        let userUnlocked = false;
+      <!-- Observação -->
+      <div>
+        <label class="block text-xs font-medium text-slate-700 mb-1">Observação (Opcional)</label>
+        <input type="text" id="obsInput" placeholder="Ex: teclado ruim, tela quebrada..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm" />
+      </div>
 
-        updateCounts();
-        renderDatabaseTable();
-        renderAuditedList();
+      <button onclick="salvarLancamento()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm shadow-md hover:bg-emerald-700 transition">
+        + Adicionar Registro
+      </button>
+    </section>
 
-        function switchTab(tabName) {
-            document.getElementById('suggestions-box').classList.add('hidden');
+    <!-- 3. Resumo da Contagem Atual -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">3. Itens na Sessão Atual</h2>
+      <div id="resumoContainer" class="text-xs space-y-2 max-h-56 overflow-y-auto bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+        <p class="text-slate-400 italic text-center py-2">Nenhum item adicionado nesta contagem.</p>
+      </div>
+    </section>
 
-            const contents = document.querySelectorAll('.tab-content');
-            contents.forEach(el => el.classList.add('hidden'));
+    <!-- 4. Exportar Planilha -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <button onclick="exportarExcel()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-black transition flex items-center justify-center gap-2">
+        📥 Exportar Relatório Excel (.xlsx)
+      </button>
+    </section>
 
-            ['triage', 'database', 'audited'].forEach(t => {
-                const btn = document.getElementById(`tab-${t}`);
-                if (btn) {
-                    btn.className = "flex-1 py-4 text-center font-medium text-slate-500 border-b-4 border-transparent text-sm cursor-pointer";
-                }
-            });
+  </main>
 
-            const targetContent = document.getElementById(`content-${tabName}`);
-            if (targetContent) {
-                targetContent.classList.remove('hidden');
-            }
+  <script>
+    let CATALOGO_GLOBAL = { notebooks: [], ativos: [], perifericos: [] };
+    let categoriaAtual = 'notebook';
+    let lancamentos = [];
 
-            const targetBtn = document.getElementById(`tab-${tabName}`);
-            if (targetBtn) {
-                targetBtn.className = "flex-1 py-4 text-center font-bold text-indigo-600 border-b-4 border-indigo-600 text-sm bg-indigo-50/50 cursor-pointer";
-            }
-        }
+    // Carregar arquivo de produtos hospedado no GitHub
+    async function carregarProdutosDoGitHub() {
+      const statusEl = document.getElementById('statusNuvem');
+      try {
+        // Busca o arquivo produtos.json do mesmo repositório
+        const response = await fetch('./produtos.json?v=' + new Date().getTime());
+        if (!response.ok) throw new Error('Arquivo produtos.json não encontrado.');
+        
+        const listaProdutos = await response.json();
 
-        function updateCounts() {
-            document.getElementById('total-loaded').innerText = `${globalAssets.length} ativos carregados`;
-            document.getElementById('audit-count').innerText = auditedAssets.length;
-        }
+        let notebookSet = new Set();
+        let ativoSet = new Set();
+        let perifericoSet = new Set();
 
-        document.getElementById('excel-file-input').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        listaProdutos.forEach(nomeProd => {
+          let limpo = String(nomeProd).replace(/ - (Defeito\/Manutenção|MS-SP.*)/g, '').trim();
+          const lower = limpo.toLowerCase();
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
-
-                    let addedCount = 0;
-                    json.forEach((row) => {
-                        const nome = row['Nome'] || row['nome'] || '';
-                        const ativo = row['Ativo'] || row['Número de inventário'] || row['ativo'] || '';
-                        const sn = row['SN'] || row['Número de série'] || row['sn'] || '';
-                        const modelo = row['Modelo'] || row['modelo'] || '';
-                        const localizacao = row['Localização'] || row['localizacao'] || '';
-                        const usuario = row['Usuário'] || row['usuario'] || '';
-                        const status = row['Status'] || row['status'] || '';
-
-                        let categoria = 'Geral';
-                        const lowerName = file.name.toLowerCase();
-                        if (lowerName.includes('note')) categoria = 'Notebook';
-                        else if (lowerName.includes('telefone') || lowerName.includes('celular')) categoria = 'Telefone';
-                        else if (lowerName.includes('monitor')) categoria = 'Monitor';
-                        else categoria = row['Tipo'] || 'Outro';
-
-                        globalAssets.push({
-                            id: 'item_' + Math.random().toString(36).substring(2, 9),
-                            categoria,
-                            nome: String(nome),
-                            ativo: String(ativo),
-                            sn: String(sn),
-                            modelo: String(modelo),
-                            localizacao: String(localizacao),
-                            usuario: String(usuario),
-                            status_origem: String(status)
-                        });
-                        addedCount++;
-                    });
-
-                    localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
-                    updateCounts();
-                    renderDatabaseTable();
-                    populateUserDropdown();
-                    document.getElementById('import-status').innerText = `Sucesso! +${addedCount} itens adicionados de "${file.name}".`;
-                    e.target.value = '';
-                } catch (err) {
-                    alert('Erro ao ler arquivo Excel: ' + err.message);
-                }
-            };
-            reader.readAsArrayBuffer(file);
+          if (lower.includes('notebook')) {
+            notebookSet.add(limpo);
+          } else if (lower.includes('celular') || lower.includes('monitor') || lower.includes('tablet') || lower.includes('dockstation')) {
+            ativoSet.add(limpo);
+          } else {
+            perifericoSet.add(limpo);
+          }
         });
 
-        function populateUserDropdown() {
-            const users = [...new Set(globalAssets.map(a => a.usuario).filter(u => u && u !== 'undefined' && u !== 'nan'))].sort();
-            const selectUsr = document.getElementById('f-usuario-select');
-            selectUsr.innerHTML = users.map(u => `<option value="${u}">${u}</option>`).join('');
+        CATALOGO_GLOBAL.notebooks = Array.from(notebookSet).sort();
+        CATALOGO_GLOBAL.ativos = Array.from(ativoSet).sort();
+        CATALOGO_GLOBAL.perifericos = Array.from(perifericoSet).sort();
+
+        statusEl.className = "bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs text-emerald-800 font-semibold";
+        statusEl.innerHTML = "✅ Catálogo sincronizado com o GitHub!";
+
+        selecionarCategoria(categoriaAtual);
+
+      } catch (err) {
+        console.warn('Usando catálogo fallback local:', err);
+        statusEl.className = "bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-xs text-amber-800";
+        statusEl.innerHTML = "⚠️ Não encontrou produtos.json no GitHub. Crie o arquivo no repositório!";
+      }
+    }
+
+    // Alternar Categorias
+    function selecionarCategoria(cat) {
+      categoriaAtual = cat;
+
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.className = "cat-btn bg-slate-50 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-semibold text-xs text-center flex flex-col items-center justify-center gap-1 transition";
+      });
+
+      const btnAtivo = document.getElementById(cat === 'notebook' ? 'btnCatNotebook' : (cat === 'ativo' ? 'btnCatAtivo' : 'btnCatPeriferico'));
+      btnAtivo.className = "cat-btn bg-indigo-50 border-2 border-indigo-600 text-indigo-800 p-2.5 rounded-xl font-bold text-xs text-center flex flex-col items-center justify-center gap-1 transition";
+
+      const select = document.getElementById('modeloSelect');
+      select.innerHTML = '';
+      
+      const lista = CATALOGO_GLOBAL[cat === 'notebook' ? 'notebooks' : (cat === 'ativo' ? 'ativos' : 'perifericos')];
+
+      if (lista.length === 0) {
+        select.innerHTML = '<option value="">Nenhum item nesta categoria</option>';
+      } else {
+        lista.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = item;
+          select.appendChild(opt);
+        });
+      }
+
+      const painelAtivos = document.getElementById('painelAtivos');
+      const painelPerifericos = document.getElementById('painelPerifericos');
+
+      if (cat === 'periferico') {
+        painelAtivos.classList.add('hidden');
+        painelPerifericos.classList.remove('hidden');
+      } else {
+        painelAtivos.classList.remove('hidden');
+        painelPerifericos.classList.add('hidden');
+      }
+    }
+
+    // Salvar Lançamento
+    function salvarLancamento() {
+      const modeloBase = document.getElementById('modeloSelect').value;
+      if (!modeloBase) {
+        alert('Selecione um modelo válido!');
+        return;
+      }
+      const obs = document.getElementById('obsInput').value.trim();
+
+      if (categoriaAtual === 'periferico') {
+        const qtdBoa = parseInt(document.getElementById('qtdBoaInput').value) || 0;
+        const qtdRuim = parseInt(document.getElementById('qtdRuimInput').value) || 0;
+
+        if (qtdBoa === 0 && qtdRuim === 0) {
+          alert('Informe pelo menos a quantidade Boa ou Ruim!');
+          return;
         }
 
-        populateUserDropdown();
-
-        function clearDatabase() {
-            if (confirm('Deseja realmente limpar todos os ativos carregados?')) {
-                globalAssets = [];
-                localStorage.removeItem('inv_assets');
-                updateCounts();
-                renderDatabaseTable();
-                populateUserDropdown();
-            }
+        if (qtdBoa > 0) {
+          lancamentos.push({
+            Produto: modeloBase,
+            Quantidade: qtdBoa,
+            Estado: 'Bom Estado (OK)',
+            Categoria: 'Periférico',
+            Observacao: obs,
+            Data_Hora: new Date().toLocaleString('pt-BR')
+          });
         }
 
-        function clearAuditedList() {
-            if (confirm('Deseja realmente limpar todo o histórico de equipamentos auditados?')) {
-                auditedAssets = [];
-                localStorage.removeItem('inv_audited');
-                updateCounts();
-                renderAuditedList();
-            }
+        if (qtdRuim > 0) {
+          lancamentos.push({
+            Produto: `${modeloBase} - Defeito/Manutenção`,
+            Quantidade: qtdRuim,
+            Estado: 'Defeito / Manutenção',
+            Categoria: 'Periférico',
+            Observacao: obs,
+            Data_Hora: new Date().toLocaleString('pt-BR')
+          });
         }
 
-        function deleteSingleAsset(id) {
-            globalAssets = globalAssets.filter(item => item.id !== id);
-            localStorage.setItem('inv_assets', JSON.stringify(globalAssets));
-            updateCounts();
-            renderDatabaseTable();
-            populateUserDropdown();
+        document.getElementById('qtdBoaInput').value = '0';
+        document.getElementById('qtdRuimInput').value = '0';
+
+      } else {
+        const estado = document.querySelector('input[name="estadoAtivo"]:checked').value;
+        const isMsSp = document.getElementById('chkMsSp').checked;
+        const qtd = parseInt(document.getElementById('qtdAtivoInput').value) || 1;
+
+        let nomeFormatado = modeloBase;
+
+        if (isMsSp) {
+          nomeFormatado += ' - MS-SP';
         }
 
-        function renderDatabaseTable() {
-            const filter = (document.getElementById('db-filter').value || '').toLowerCase();
-            const tbody = document.getElementById('db-table-body');
-            const filtered = globalAssets.filter(a => 
-                a.nome.toLowerCase().includes(filter) || 
-                a.ativo.toLowerCase().includes(filter) || 
-                a.sn.toLowerCase().includes(filter) ||
-                a.modelo.toLowerCase().includes(filter)
-            ).slice(0, 100);
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-slate-400">Nenhum ativo encontrado.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = filtered.map(item => `
-                <tr class="hover:bg-slate-50">
-                    <td class="p-2">
-                        <div class="font-bold text-slate-700">${item.nome || item.ativo || item.sn}</div>
-                        <div class="text-[10px] text-slate-400">${item.categoria} | Ativo: ${item.ativo}</div>
-                    </td>
-                    <td class="p-2 text-slate-500">${item.modelo}</td>
-                    <td class="p-2 text-right">
-                        <button type="button" onclick="deleteSingleAsset('${item.id}')" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 bg-red-50 rounded">Excluir</button>
-                    </td>
-                </tr>
-            `).join('');
+        if (estado === 'RUIM') {
+          nomeFormatado += ' - Defeito/Manutenção';
         }
 
-        const searchInput = document.getElementById('search-input');
-        const suggestionsBox = document.getElementById('suggestions-box');
-
-        searchInput.addEventListener('input', function() {
-            const query = this.value.trim().toLowerCase();
-            if (query.length < 1) {
-                suggestionsBox.classList.add('hidden');
-                return;
-            }
-
-            const matches = globalAssets.filter(a => 
-                a.nome.toLowerCase().includes(query) || 
-                a.ativo.toLowerCase().includes(query) || 
-                a.sn.toLowerCase().includes(query)
-            ).slice(0, 10);
-
-            if (matches.length === 0) {
-                suggestionsBox.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum equipamento correspondente na base.</div>`;
-            } else {
-                suggestionsBox.innerHTML = matches.map(item => `
-                    <div onclick='selectAssetItem(${JSON.stringify(item)})' class="p-2.5 hover:bg-indigo-50 cursor-pointer text-xs">
-                        <div class="font-bold text-indigo-700">${item.nome || 'Sem Nome'} <span class="text-slate-400 font-normal">(${item.categoria})</span></div>
-                        <div class="text-slate-500">Ativo: ${item.ativo} | SN: ${item.sn} | Modelo: ${item.modelo}</div>
-                    </div>
-                `).join('');
-            }
-            suggestionsBox.classList.remove('hidden');
+        lancamentos.push({
+          Produto: nomeFormatado,
+          Quantidade: qtd,
+          Estado: estado === 'BOM' ? 'Bom Estado (OK)' : 'Defeito / Manutenção',
+          Categoria: categoriaAtual === 'notebook' ? 'Notebook' : 'Ativo',
+          Observacao: obs,
+          Data_Hora: new Date().toLocaleString('pt-BR')
         });
 
-        function selectAssetItem(item) {
-            selectedAsset = item;
-            localUnlocked = false;
-            userUnlocked = false;
+        document.getElementById('qtdAtivoInput').value = '1';
+        document.getElementById('chkMsSp').checked = false;
+      }
 
-            document.getElementById('f-nome').value = item.nome;
-            document.getElementById('f-ativo').value = item.ativo;
-            document.getElementById('f-sn').value = item.sn;
-            document.getElementById('f-modelo').value = item.modelo;
-            
-            document.getElementById('f-local-text').value = item.localizacao || '';
-            document.getElementById('f-local-select').value = ['ES','MG','RJ','SP'].includes(item.localizacao) ? item.localizacao : 'ES';
-            document.getElementById('f-local-text').classList.remove('hidden');
-            document.getElementById('f-local-select').classList.add('hidden');
+      document.getElementById('obsInput').value = '';
+      atualizarResumo();
+    }
 
-            document.getElementById('f-usuario-text').value = item.usuario || '';
-            document.getElementById('f-usuario-select').value = item.usuario || '';
-            document.getElementById('f-usuario-text').classList.remove('hidden');
-            document.getElementById('f-usuario-select').classList.add('hidden');
+    function atualizarResumo() {
+      const totalItens = lancamentos.reduce((acc, curr) => acc + curr.Quantidade, 0);
+      document.getElementById('totalContado').innerText = `Total: ${totalItens}`;
 
-            document.getElementById('loc-changed-badge').classList.add('hidden');
-            document.getElementById('usr-changed-badge').classList.add('hidden');
+      const resContainer = document.getElementById('resumoContainer');
+      resContainer.innerHTML = '';
 
-            document.getElementById('asset-cat').innerText = item.categoria;
-            searchInput.value = item.nome || item.ativo || item.sn;
-            suggestionsBox.classList.add('hidden');
-            document.getElementById('btn-salvar').removeAttribute('disabled');
-        }
+      if (lancamentos.length === 0) {
+        resContainer.innerHTML = '<p class="text-slate-400 italic text-center py-2">Nenhum item adicionado nesta contagem.</p>';
+        return;
+      }
 
-        function unlockField(field) {
-            if (!selectedAsset) return;
-            if (field === 'local' && localUnlocked) return;
-            if (field === 'usuario' && userUnlocked) return;
+      lancamentos.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm";
+        div.innerHTML = `
+          <div>
+            <span class="font-bold text-slate-800 text-xs block">${item.Produto}</span>
+            <span class="text-[10px] text-slate-500">${item.Categoria} | Qtd: <b class="text-indigo-600">${item.Quantidade}</b> ${item.Observacao ? ' | Obs: ' + item.Observacao : ''}</span>
+          </div>
+          <button onclick="removerItem(${index})" class="text-red-500 font-bold px-2 py-1 text-xs hover:bg-red-50 rounded">✕</button>
+        `;
+        resContainer.appendChild(div);
+      });
+    }
 
-            const confirmou = confirm(`⚠️ Deseja realmente alterar o campo "${field === 'local' ? 'Localização' : 'Usuário'}" deste equipamento?`);
-            if (!confirmou) return;
+    function removerItem(index) {
+      lancamentos.splice(index, 1);
+      atualizarResumo();
+    }
 
-            if (field === 'local') {
-                localUnlocked = true;
-                document.getElementById('f-local-text').classList.add('hidden');
-                document.getElementById('f-local-select').classList.remove('hidden');
-                document.getElementById('f-local-select').focus();
-            } else if (field === 'usuario') {
-                userUnlocked = true;
-                document.getElementById('f-usuario-text').classList.add('hidden');
-                document.getElementById('f-usuario-select').classList.remove('hidden');
-                document.getElementById('f-usuario-select').focus();
-            }
-        }
+    function exportarExcel() {
+      if (lancamentos.length === 0) {
+        alert('Realize pelo menos um lançamento antes de baixar o relatório!');
+        return;
+      }
 
-        function syncField(field) {
-            if (field === 'local') {
-                const val = document.getElementById('f-local-select').value;
-                document.getElementById('f-local-text').value = val;
-                if (val !== String(selectedAsset.localizacao)) {
-                    document.getElementById('loc-changed-badge').classList.remove('hidden');
-                } else {
-                    document.getElementById('loc-changed-badge').classList.add('hidden');
-                }
-            } else if (field === 'usuario') {
-                const val = document.getElementById('f-usuario-select').value;
-                document.getElementById('f-usuario-text').value = val;
-                if (val !== String(selectedAsset.usuario)) {
-                    document.getElementById('usr-changed-badge').classList.remove('hidden');
-                } else {
-                    document.getElementById('usr-changed-badge').classList.add('hidden');
-                }
-            }
-        }
+      const dadosExport = lancamentos.map(item => ({
+        "Produto / Identificação": item.Produto,
+        "Quantidade": item.Quantidade,
+        "Estado": item.Estado,
+        "Categoria": item.Categoria,
+        "Observação": item.Observacao,
+        "Data e Hora": item.Data_Hora
+      }));
 
-        function saveAudit(e) {
-            e.preventDefault();
-            if (!selectedAsset) return;
+      const worksheet = XLSX.utils.json_to_sheet(dadosExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario_Almox");
 
-            const condicao = document.getElementById('f-condicao').value;
-            const destino = document.getElementById('f-destino').value;
-            const obs = document.getElementById('f-obs').value;
-            const novaLocalizacao = document.getElementById('f-local-text').value.trim();
-            const novoUsuario = document.getElementById('f-usuario-text').value.trim();
+      const dataAtual = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Inventario_Estoque_${dataAtual}.xlsx`);
+    }
 
-            const defeitosChecked = Array.from(document.querySelectorAll('input[name="defeito"]:checked')).map(cb => cb.value).join(', ');
-
-            const localFoiAlterado = novaLocalizacao !== String(selectedAsset.localizacao);
-            const usuarioFoiAlterado = novoUsuario !== String(selectedAsset.usuario);
-
-            const auditRecord = {
-                ...selectedAsset,
-                localizacao: novaLocalizacao,
-                usuario: novoUsuario,
-                localizacao_original: selectedAsset.localizacao,
-                usuario_original: selectedAsset.usuario,
-                alterou_localizacao: localFoiAlterado ? 'SIM' : 'NÃO',
-                alterou_usuario: usuarioFoiAlterado ? 'SIM' : 'NÃO',
-                condicao,
-                defeitos: defeitosChecked || 'Nenhum',
-                destino,
-                observacoes_triage: obs,
-                data_auditoria: new Date().toLocaleString('pt-BR')
-            };
-
-            auditedAssets.unshift(auditRecord);
-            localStorage.setItem('inv_audited', JSON.stringify(auditedAssets));
-            renderAuditedList();
-            updateCounts();
-
-            document.getElementById('triage-form').reset();
-            searchInput.value = '';
-            document.getElementById('btn-salvar').setAttribute('disabled', 'true');
-            document.getElementById('loc-changed-badge').classList.add('hidden');
-            document.getElementById('usr-changed-badge').classList.add('hidden');
-            selectedAsset = null;
-            localUnlocked = false;
-            userUnlocked = false;
-            document.getElementById('asset-cat').innerText = '';
-            alert('Equipamento auditado e salvo com sucesso!');
-        }
-
-        function getFilteredAudited() {
-            const catFilter = document.getElementById('filter-cat').value;
-            const destFilter = document.getElementById('filter-dest').value;
-
-            return auditedAssets.filter(item => {
-                const matchCat = !catFilter || item.categoria === catFilter;
-                const matchDest = !destFilter || item.destino === destFilter;
-                return matchCat && matchDest;
-            });
-        }
-
-        function renderAuditedList() {
-            const listDiv = document.getElementById('audited-list');
-            const catFilter = document.getElementById('filter-cat').value;
-            const destFilter = document.getElementById('filter-dest').value;
-
-            const filtered = getFilteredAudited();
-            
-            // Lógica ajustada do contador:
-            // Se houver filtro de Categoria, o total base é apenas os itens daquela categoria. Caso contrário, é o total geral.
-            let totalBase = auditedAssets.length;
-            if (catFilter) {
-                totalBase = auditedAssets.filter(item => item.categoria === catFilter).length;
-            }
-
-            document.getElementById('filtered-count').innerText = `${filtered.length} de ${totalBase} itens exibidos`;
-
-            if (filtered.length === 0) {
-                listDiv.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Nenhum equipamento correspondente aos filtros.</p>`;
-                return;
-            }
-
-            listDiv.innerHTML = filtered.map((item) => `
-                <div class="p-3 bg-slate-50 border rounded-lg text-xs space-y-1 relative">
-                    <div class="font-bold text-slate-700 flex justify-between">
-                        <span>${item.nome || item.ativo} (${item.categoria})</span>
-                        <span class="text-indigo-600 font-medium">${item.modelo}</span>
-                    </div>
-                    <div class="text-slate-500">Condição: <span class="font-semibold text-slate-700">${item.condicao}</span> | Destino: <span class="font-semibold text-indigo-600">${item.destino}</span></div>
-                    <div class="text-slate-500">Local: <span class="text-slate-700 font-medium">${item.localizacao}</span> ${item.alterou_localizacao === 'SIM' ? '<span class="text-amber-600 font-bold">(Alt)</span>' : ''} | Usuário: <span class="text-slate-700 font-medium">${item.usuario}</span></div>
-                    <div class="text-slate-500">Defeitos: ${item.defeitos}</div>
-                    ${item.observacoes_triage ? `<div class="text-slate-400 italic">Obs: ${item.observacoes_triage}</div>` : ''}
-                    <div class="text-[10px] text-slate-400 text-right">${item.data_auditoria}</div>
-                </div>
-            `).join('');
-        }
-
-        function exportToExcel() {
-            const filtered = getFilteredAudited();
-            if (filtered.length === 0) {
-                alert('Não há dados filtrados para exportar.');
-                return;
-            }
-
-            const worksheet = XLSX.utils.json_to_sheet(filtered);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Relatorio_Triage");
-            XLSX.writeFile(workbook, "Relatorio_Inventario_Triage_Filtrado.xlsx");
-        }
-    </script>
+    // Inicializa a busca no GitHub ao carregar a página
+    carregarProdutosDoGitHub();
+  </script>
 </body>
 </html>
