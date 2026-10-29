@@ -10,9 +10,8 @@
   <!-- Módulos do Firebase Firestore -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Sua Configuração Oficial do Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBEEpwCJg4aU1-HG52TRoKqkYnDDyg8YpY",
       authDomain: "inventario-ativos-32310.firebaseapp.com",
@@ -22,7 +21,6 @@
       appId: "1:1052155698576:web:cc411272b6efd369d2a715"
     };
 
-    // Inicializa Firebase e Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const inventarioRef = collection(db, "inventario");
@@ -33,20 +31,22 @@
     window.deleteDoc = deleteDoc;
     window.doc = doc;
 
-    // Escuta em TEMPO REAL as alterações na nuvem
-    const q = query(inventarioRef, orderBy("timestamp", "desc"));
-    onSnapshot(q, (snapshot) => {
+    // Escuta em TEMPO REAL sem exigir índices complexos
+    onSnapshot(inventarioRef, (snapshot) => {
       window.lancamentos = [];
-      snapshot.forEach((doc) => {
-        window.lancamentos.push({ id: doc.id, ...doc.data() });
+      snapshot.forEach((docSnap) => {
+        window.lancamentos.push({ id: docSnap.id, ...docSnap.data() });
       });
+      
+      // Ordena localmente por timestamp do mais recente para o mais antigo
+      window.lancamentos.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       window.atualizarResumo();
     }, (error) => {
-      console.error("Erro ao sincronizar com Firestore:", error);
+      console.error("Erro no Firestore:", error);
       const statusEl = document.getElementById('statusNuvem');
       if (statusEl) {
         statusEl.className = "bg-red-50 border border-red-200 p-2.5 rounded-xl text-xs text-red-800 font-medium";
-        statusEl.innerHTML = "⚠️ Erro de permissão no Firestore. Verifique se ativou o Modo de Teste nas regras!";
+        statusEl.innerHTML = "⚠️ Erro de conexão com o banco. Verifique o console (F12).";
       }
     });
   </script>
@@ -92,7 +92,6 @@
     <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
       <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">2. Lançamento</h2>
 
-      <!-- Modelo -->
       <div>
         <label class="block text-xs font-medium text-slate-700 mb-1">Modelo / Item</label>
         <select id="modeloSelect" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500">
@@ -121,4 +120,278 @@
             <input type="checkbox" id="chkMsSp" class="w-4 h-4 text-amber-600 rounded">
             <div>
               <span class="text-xs font-bold text-amber-900 block">MS-SP (Formatado / Sem Imagem)</span>
-              <span class="text-[10px] text-amber-700 block">Marque se
+              <span class="text-[10px] text-amber-700 block">Marque se estiver formatado sem imagem</span>
+            </div>
+          </label>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1">Quantidade</label>
+          <input type="number" id="qtdAtivoInput" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-indigo-700 text-center" />
+        </div>
+      </div>
+
+      <!-- PAINEL PERIFÉRICOS -->
+      <div id="painelPerifericos" class="hidden space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-emerald-700 mb-1">Qtd Boas (OK)</label>
+            <input type="number" id="qtdBoaInput" value="0" min="0" class="w-full p-2.5 border border-emerald-300 bg-emerald-50 rounded-lg text-base font-bold text-emerald-800 text-center focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-red-600 mb-1">Qtd Ruins (Defeito)</label>
+            <input type="number" id="qtdRuimInput" value="0" min="0" class="w-full p-2.5 border border-red-300 bg-red-50 rounded-lg text-base font-bold text-red-700 text-center focus:ring-2 focus:ring-red-500" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-700 mb-1">Observação (Opcional)</label>
+        <input type="text" id="obsInput" placeholder="Ex: teclado ruim, tela quebrada..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm" />
+      </div>
+
+      <button onclick="salvarLancamento()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm shadow-md hover:bg-emerald-700 transition">
+        + Salvar na Nuvem
+      </button>
+    </section>
+
+    <!-- 3. Resumo da Contagem -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">3. Itens Gravados em Tempo Real</h2>
+      <div id="resumoContainer" class="text-xs space-y-2 max-h-56 overflow-y-auto bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+        <p class="text-slate-400 italic text-center py-2">Carregando dados da nuvem...</p>
+      </div>
+    </section>
+
+    <!-- 4. Exportar Planilha -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <button onclick="exportarExcel()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-black transition flex items-center justify-center gap-2">
+        📥 Exportar Relatório Excel (.xlsx)
+      </button>
+    </section>
+
+  </main>
+
+  <script>
+    let CATALOGO_GLOBAL = { notebooks: [], ativos: [], perifericos: [] };
+    let categoriaAtual = 'notebook';
+    window.lancamentos = [];
+
+    async function carregarProdutosDoGitHub() {
+      const statusEl = document.getElementById('statusNuvem');
+      try {
+        const response = await fetch('./produtos.json?t=' + new Date().getTime());
+        if (!response.ok) throw new Error('produtos.json não encontrado');
+        
+        const listaProdutos = await response.json();
+
+        let notebookSet = new Set();
+        let ativoSet = new Set();
+        let perifericoSet = new Set();
+
+        listaProdutos.forEach(nomeProd => {
+          let limpo = String(nomeProd).replace(/ - (Defeito\/Manutenção|MS-SP.*)/g, '').trim();
+          const lower = limpo.toLowerCase();
+
+          if (lower.includes('notebook')) {
+            notebookSet.add(limpo);
+          } else if (lower.includes('celular') || lower.includes('monitor') || lower.includes('tablet') || lower.includes('dockstation')) {
+            ativoSet.add(limpo);
+          } else {
+            perifericoSet.add(limpo);
+          }
+        });
+
+        CATALOGO_GLOBAL.notebooks = Array.from(notebookSet).sort();
+        CATALOGO_GLOBAL.ativos = Array.from(ativoSet).sort();
+        CATALOGO_GLOBAL.perifericos = Array.from(perifericoSet).sort();
+
+        if (statusEl) {
+          statusEl.className = "bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs text-emerald-800 font-semibold";
+          statusEl.innerHTML = "✅ Conectado ao Firebase e Catálogo do GitHub!";
+        }
+
+        selecionarCategoria(categoriaAtual);
+
+      } catch (err) {
+        console.warn('Aviso:', err);
+        if (statusEl) {
+          statusEl.className = "bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-xs text-amber-800";
+          statusEl.innerHTML = "⚠️ Verifique o arquivo produtos.json no GitHub.";
+        }
+      }
+    }
+
+    function selecionarCategoria(cat) {
+      categoriaAtual = cat;
+
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.className = "cat-btn bg-slate-50 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-semibold text-xs text-center flex flex-col items-center justify-center gap-1 transition";
+      });
+
+      const btnAtivo = document.getElementById(cat === 'notebook' ? 'btnCatNotebook' : (cat === 'ativo' ? 'btnCatAtivo' : 'btnCatPeriferico'));
+      btnAtivo.className = "cat-btn bg-indigo-50 border-2 border-indigo-600 text-indigo-800 p-2.5 rounded-xl font-bold text-xs text-center flex flex-col items-center justify-center gap-1 transition";
+
+      const select = document.getElementById('modeloSelect');
+      select.innerHTML = '';
+      
+      const lista = CATALOGO_GLOBAL[cat === 'notebook' ? 'notebooks' : (cat === 'ativo' ? 'ativos' : 'perifericos')];
+
+      if (lista.length === 0) {
+        select.innerHTML = '<option value="">Nenhum item carregado</option>';
+      } else {
+        lista.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = item;
+          select.appendChild(opt);
+        });
+      }
+
+      const painelAtivos = document.getElementById('painelAtivos');
+      const painelPerifericos = document.getElementById('painelPerifericos');
+
+      if (cat === 'periferico') {
+        painelAtivos.classList.add('hidden');
+        painelPerifericos.classList.remove('hidden');
+      } else {
+        painelAtivos.classList.remove('hidden');
+        painelPerifericos.classList.add('hidden');
+      }
+    }
+
+    async function salvarLancamento() {
+      const modeloBase = document.getElementById('modeloSelect').value;
+      if (!modeloBase) {
+        alert('Selecione um modelo válido!');
+        return;
+      }
+      const obs = document.getElementById('obsInput').value.trim();
+
+      if (categoriaAtual === 'periferico') {
+        const qtdBoa = parseInt(document.getElementById('qtdBoaInput').value) || 0;
+        const qtdRuim = parseInt(document.getElementById('qtdRuimInput').value) || 0;
+
+        if (qtdBoa === 0 && qtdRuim === 0) {
+          alert('Informe a quantidade Boa ou Ruim!');
+          return;
+        }
+
+        if (qtdBoa > 0) {
+          await window.addDoc(window.inventarioRef, {
+            Produto: modeloBase,
+            Quantidade: qtdBoa,
+            Estado: 'Bom Estado (OK)',
+            Categoria: 'Periférico',
+            Observacao: obs,
+            Data_Hora: new Date().toLocaleString('pt-BR'),
+            timestamp: Date.now()
+          });
+        }
+
+        if (qtdRuim > 0) {
+          await window.addDoc(window.inventarioRef, {
+            Produto: `${modeloBase} - Defeito/Manutenção`,
+            Quantidade: qtdRuim,
+            Estado: 'Defeito / Manutenção',
+            Categoria: 'Periférico',
+            Observacao: obs,
+            Data_Hora: new Date().toLocaleString('pt-BR'),
+            timestamp: Date.now()
+          });
+        }
+
+        document.getElementById('qtdBoaInput').value = '0';
+        document.getElementById('qtdRuimInput').value = '0';
+
+      } else {
+        const estado = document.querySelector('input[name="estadoAtivo"]:checked').value;
+        const isMsSp = document.getElementById('chkMsSp').checked;
+        const qtd = parseInt(document.getElementById('qtdAtivoInput').value) || 1;
+
+        let nomeFormatado = modeloBase;
+
+        if (isMsSp) {
+          nomeFormatado += ' - MS-SP';
+        }
+
+        if (estado === 'RUIM') {
+          nomeFormatado += ' - Defeito/Manutenção';
+        }
+
+        await window.addDoc(window.inventarioRef, {
+          Produto: nomeFormatado,
+          Quantidade: qtd,
+          Estado: estado === 'BOM' ? 'Bom Estado (OK)' : 'Defeito / Manutenção',
+          Categoria: categoriaAtual === 'notebook' ? 'Notebook' : 'Ativo',
+          Observacao: obs,
+          Data_Hora: new Date().toLocaleString('pt-BR'),
+          timestamp: Date.now()
+        });
+
+        document.getElementById('qtdAtivoInput').value = '1';
+        document.getElementById('chkMsSp').checked = false;
+      }
+
+      document.getElementById('obsInput').value = '';
+    }
+
+    window.atualizarResumo = function() {
+      const totalItens = window.lancamentos.reduce((acc, curr) => acc + curr.Quantidade, 0);
+      document.getElementById('totalContado').innerText = `Total: ${totalItens}`;
+
+      const resContainer = document.getElementById('resumoContainer');
+      resContainer.innerHTML = '';
+
+      if (window.lancamentos.length === 0) {
+        resContainer.innerHTML = '<p class="text-slate-400 italic text-center py-2">Nenhum item gravado na nuvem.</p>';
+        return;
+      }
+
+      window.lancamentos.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm";
+        div.innerHTML = `
+          <div>
+            <span class="font-bold text-slate-800 text-xs block">${item.Produto}</span>
+            <span class="text-[10px] text-slate-500">${item.Categoria} | Qtd: <b class="text-indigo-600">${item.Quantidade}</b> ${item.Observacao ? ' | Obs: ' + item.Observacao : ''}</span>
+          </div>
+          <button onclick="removerItem('${item.id}')" class="text-red-500 font-bold px-2 py-1 text-xs hover:bg-red-50 rounded" title="Excluir">✕</button>
+        `;
+        resContainer.appendChild(div);
+      });
+    }
+
+    window.removerItem = async function(id) {
+      if (confirm('Deseja excluir este registro da nuvem?')) {
+        await window.deleteDoc(window.doc(window.db, "inventario", id));
+      }
+    }
+
+    window.exportarExcel = function() {
+      if (window.lancamentos.length === 0) {
+        alert('Nenhum dado na nuvem para exportar!');
+        return;
+      }
+
+      const dadosExport = window.lancamentos.map(item => ({
+        "Produto / Identificação": item.Produto,
+        "Quantidade": item.Quantidade,
+        "Estado": item.Estado,
+        "Categoria": item.Categoria,
+        "Observação": item.Observacao,
+        "Data e Hora": item.Data_Hora
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dadosExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario_Almox");
+
+      const dataAtual = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Inventario_Estoque_${dataAtual}.xlsx`);
+    }
+
+    carregarProdutosDoGitHub();
+  </script>
+</body>
+</html>
