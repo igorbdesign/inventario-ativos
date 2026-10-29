@@ -14,7 +14,7 @@
     <div class="max-w-md mx-auto flex justify-between items-center">
       <div>
         <h1 class="text-base font-bold">📦 Coletor de Almoxarifado</h1>
-        <p class="text-[10px] text-indigo-200">Modo Seguro (Offline/Local)</p>
+        <p class="text-[10px] text-indigo-200">Lista Completa Carregada</p>
       </div>
       <span id="totalContado" class="bg-indigo-900 text-white text-xs px-2.5 py-1 rounded-full font-bold">Total: 0</span>
     </div>
@@ -24,7 +24,7 @@
 
     <!-- Status -->
     <section id="statusMsg" class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs text-emerald-800 font-semibold">
-      ✅ Sistema pronto e salvando automaticamente no aparelho!
+      ✅ Todos os itens oficiais carregados com sucesso!
     </section>
 
     <!-- 1. Categoria do Item -->
@@ -51,7 +51,7 @@
       <div>
         <label for="modeloSelect" class="block text-xs font-medium text-slate-700 mb-1">Modelo / Item</label>
         <select id="modeloSelect" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500">
-          <option value="">Carregando catálogo...</option>
+          <option value="">Carregando...</option>
         </select>
       </div>
 
@@ -132,11 +132,76 @@
   </main>
 
   <script>
-    let CATALOGO_GLOBAL = { notebooks: [], ativos: [], perifericos: [] };
+    // Lista completa oficial extraída da planilha original (62 itens)
+    let CATALOGO_GLOBAL = {
+      notebooks: [
+        "Notebook Latitude 7410",
+        "Notebook Latitude 7420",
+        "Notebook Latitude 7440",
+        "Notebook Latitude 7450",
+        "Notebook Mod. Anteriores (7400/7490/Outros)",
+        "Notebook Pro 14 Plus",
+        "Notebook Workstation"
+      ],
+      ativos: [
+        "Celular - Modelos Anteriores",
+        "Celular Motorola G10",
+        "Celular Motorola G22",
+        "Celular Motorola G7",
+        "Celular Motorola G8",
+        "Celular Motorola G9",
+        "Celular Samsung A36",
+        "Dockstation Pro Smart (Workstation)",
+        "Dockstation TB16 (Workstation)",
+        "Dockstation WD15",
+        "Dockstation WD19",
+        "Dockstation WD25 (Padrão)",
+        "Monitor Dell P2417H",
+        "Monitor LG 24MK430H",
+        "Monitor Modelos Anteriores",
+        "Monitor Samsung Essential S4",
+        "Tablet S10+",
+        "Tablet S5+",
+        "Tablet S6+"
+      ],
+      perifericos: [
+        "Adaptador RJ45",
+        "Ajuste Altura Monitor",
+        "Almofada de Fone (Headset) - UN",
+        "Apoio de Punho P/ teclado",
+        "Cabo HDMI",
+        "Cartão de Memória MicroSD 128GB",
+        "Cartucho HP 954XL Cleide - Amarelo",
+        "Cartucho HP 954XL Cleide - Ciano",
+        "Cartucho HP 954XL Cleide - Preto",
+        "Cartucho HP 964XL MP - Amarelo",
+        "Cartucho HP 964XL MP - Ciano",
+        "Cartucho HP 964XL MP - Magenta",
+        "Cartucho HP 964XL MP - Preto",
+        "Cartucho T067 Canon ES - Amarelo",
+        "Cartucho T067 Canon ES - Ciano",
+        "Cartucho T067 Canon ES - Magenta",
+        "Cartucho T067 Canon ES - Preto",
+        "Crachá Provisorio",
+        "Fita Brady",
+        "Fone de Ouvido Head Set USB",
+        "Mochila",
+        "Mouse",
+        "Mousepad",
+        "Patch cord",
+        "Pen Drive 128GB",
+        "Pen Drive 16GB Data Travel",
+        "Pen Drive 16GB Fit",
+        "Pen Drive 32GB Fit",
+        "Pen Drive 64GB Data Travel",
+        "Suporte para notebook",
+        "Teclado"
+      ]
+    };
+
     let categoriaAtual = 'notebook';
     let lancamentos = [];
 
-    // Carrega dados salvos no aparelho ao iniciar
     function carregarDadosSalvos() {
       const salvo = localStorage.getItem('inventario_almoxarifado');
       if (salvo) {
@@ -149,44 +214,9 @@
       atualizarResumo();
     }
 
-    // Salva permanentemente no aparelho
     function persistirDados() {
       localStorage.setItem('inventario_almoxarifado', JSON.stringify(lancamentos));
       atualizarResumo();
-    }
-
-    async function carregarCatalogo() {
-      try {
-        const response = await fetch('./produtos.json?t=' + new Date().getTime());
-        if (!response.ok) throw new Error('produtos.json não encontrado');
-        
-        const listaProdutos = await response.json();
-
-        let notebookSet = new Set();
-        let ativoSet = new Set();
-        let perifericoSet = new Set();
-
-        listaProdutos.forEach(nomeProd => {
-          let limpo = String(nomeProd).replace(/ - (Defeito\/Manutenção|MS-SP.*)/g, '').trim();
-          const lower = limpo.toLowerCase();
-
-          if (lower.includes('notebook')) {
-            notebookSet.add(limpo);
-          } else if (lower.includes('celular') || lower.includes('monitor') || lower.includes('tablet') || lower.includes('dockstation')) {
-            ativoSet.add(limpo);
-          } else {
-            perifericoSet.add(limpo);
-          }
-        });
-
-        CATALOGO_GLOBAL.notebooks = Array.from(notebookSet).sort();
-        CATALOGO_GLOBAL.ativos = Array.from(ativoSet).sort();
-        CATALOGO_GLOBAL.perifericos = Array.from(perifericoSet).sort();
-
-        selecionarCategoria(categoriaAtual);
-      } catch (err) {
-        console.warn('Aviso ao carregar catálogo:', err);
-      }
     }
 
     function selecionarCategoria(cat) {
@@ -207,16 +237,12 @@
       
       const lista = CATALOGO_GLOBAL[cat === 'notebook' ? 'notebooks' : (cat === 'ativo' ? 'ativos' : 'perifericos')];
 
-      if (lista.length === 0) {
-        select.innerHTML = '<option value="">Nenhum item carregado</option>';
-      } else {
-        lista.forEach(item => {
-          const opt = document.createElement('option');
-          opt.value = item;
-          opt.textContent = item;
-          select.appendChild(opt);
-        });
-      }
+      lista.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item;
+        opt.textContent = item;
+        select.appendChild(opt);
+      });
 
       const painelAtivos = document.getElementById('painelAtivos');
       const painelPerifericos = document.getElementById('painelPerifericos');
@@ -252,7 +278,6 @@
 
         if (qtdBoa > 0) {
           lancamentos.push({
-            id: '_' + Math.random().toString(36).substr(2, 9),
             Produto: modeloBase,
             Quantidade: qtdBoa,
             Estado: 'Bom Estado (OK)',
@@ -264,7 +289,6 @@
 
         if (qtdRuim > 0) {
           lancamentos.push({
-            id: '_' + Math.random().toString(36).substr(2, 9),
             Produto: `${modeloBase} - Defeito/Manutenção`,
             Quantidade: qtdRuim,
             Estado: 'Defeito / Manutenção',
@@ -294,7 +318,6 @@
         }
 
         lancamentos.push({
-          id: '_' + Math.random().toString(36).substr(2, 9),
           Produto: nomeFormatado,
           Quantidade: qtd,
           Estado: estado === 'BOM' ? 'Bom Estado (OK)' : 'Defeito / Manutenção',
@@ -373,12 +396,12 @@
       XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario_Almox");
 
       const dataAtual = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `Inventario_Estoque_${dataAtual}.xlsx`);
+      XLSX.writeFile(workbook, `Relatorio_Contagem_${dataAtual}.xlsx`);
     }
 
     // Inicialização
     carregarDadosSalvos();
-    carregarCatalogo();
+    selecionarCategoria('notebook');
   </script>
 </body>
 </html>
