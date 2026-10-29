@@ -14,7 +14,7 @@
     <div class="max-w-md mx-auto flex justify-between items-center">
       <div>
         <h1 class="text-base font-bold">📦 Coletor de Almoxarifado</h1>
-        <p class="text-[10px] text-indigo-200">Lista Completa Carregada</p>
+        <p class="text-[10px] text-indigo-200">Sincronizado & Seguro</p>
       </div>
       <span id="totalContado" class="bg-indigo-900 text-white text-xs px-2.5 py-1 rounded-full font-bold">Total: 0</span>
     </div>
@@ -23,8 +23,9 @@
   <main class="max-w-md mx-auto p-4 space-y-4">
 
     <!-- Status -->
-    <section id="statusMsg" class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs text-emerald-800 font-semibold">
-      ✅ Todos os itens oficiais carregados com sucesso!
+    <section id="statusMsg" class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs text-emerald-800 font-semibold flex justify-between items-center">
+      <span>✅ Sistema pronto e salvando no aparelho!</span>
+      <button onclick="forcarBackup()" class="bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold">💾 Salvar Backup</button>
     </section>
 
     <!-- 1. Categoria do Item -->
@@ -71,19 +72,20 @@
           </div>
         </div>
 
-        <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+        <!-- Checkbox MS-SP (Exclusivo para Notebooks) -->
+        <div id="blocoMsSp" class="bg-amber-50 border border-amber-200 p-3 rounded-lg">
           <label for="chkMsSp" class="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" id="chkMsSp" class="w-4 h-4 text-amber-600 rounded">
             <div>
               <span class="text-xs font-bold text-amber-900 block">MS-SP (Formatado / Sem Imagem)</span>
-              <span class="text-[10px] text-amber-700 block">Marque se estiver formatado sem imagem</span>
+              <span class="text-[10px] text-amber-700 block">Apenas para Notebooks</span>
             </div>
           </label>
         </div>
 
         <div>
           <label for="qtdAtivoInput" class="block text-xs font-medium text-slate-700 mb-1">Quantidade</label>
-          <input type="number" id="qtdAtivoInput" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-indigo-700 text-center" />
+          <input type="number" id="qtdAtivoInput" value="1" min="1" onfocus="this.select()" class="w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-indigo-700 text-center" />
         </div>
       </div>
 
@@ -92,11 +94,11 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label for="qtdBoaInput" class="block text-xs font-bold text-emerald-700 mb-1">Qtd Boas (OK)</label>
-            <input type="number" id="qtdBoaInput" value="0" min="0" class="w-full p-2.5 border border-emerald-300 bg-emerald-50 rounded-lg text-base font-bold text-emerald-800 text-center focus:ring-2 focus:ring-emerald-500" />
+            <input type="number" id="qtdBoaInput" value="0" min="0" onfocus="this.select()" class="w-full p-2.5 border border-emerald-300 bg-emerald-50 rounded-lg text-base font-bold text-emerald-800 text-center focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
             <label for="qtdRuimInput" class="block text-xs font-bold text-red-600 mb-1">Qtd Ruins (Defeito)</label>
-            <input type="number" id="qtdRuimInput" value="0" min="0" class="w-full p-2.5 border border-red-300 bg-red-50 rounded-lg text-base font-bold text-red-700 text-center focus:ring-2 focus:ring-red-500" />
+            <input type="number" id="qtdRuimInput" value="0" min="0" onfocus="this.select()" class="w-full p-2.5 border border-red-300 bg-red-50 rounded-lg text-base font-bold text-red-700 text-center focus:ring-2 focus:ring-red-500" />
           </div>
         </div>
       </div>
@@ -132,70 +134,28 @@
   </main>
 
   <script>
-    // Lista completa oficial extraída da planilha original (62 itens)
     let CATALOGO_GLOBAL = {
       notebooks: [
-        "Notebook Latitude 7410",
-        "Notebook Latitude 7420",
-        "Notebook Latitude 7440",
-        "Notebook Latitude 7450",
-        "Notebook Mod. Anteriores (7400/7490/Outros)",
-        "Notebook Pro 14 Plus",
-        "Notebook Workstation"
+        "Notebook Latitude 7410", "Notebook Latitude 7420", "Notebook Latitude 7440",
+        "Notebook Latitude 7450", "Notebook Mod. Anteriores (7400/7490/Outros)",
+        "Notebook Pro 14 Plus", "Notebook Workstation"
       ],
       ativos: [
-        "Celular - Modelos Anteriores",
-        "Celular Motorola G10",
-        "Celular Motorola G22",
-        "Celular Motorola G7",
-        "Celular Motorola G8",
-        "Celular Motorola G9",
-        "Celular Samsung A36",
-        "Dockstation Pro Smart (Workstation)",
-        "Dockstation TB16 (Workstation)",
-        "Dockstation WD15",
-        "Dockstation WD19",
-        "Dockstation WD25 (Padrão)",
-        "Monitor Dell P2417H",
-        "Monitor LG 24MK430H",
-        "Monitor Modelos Anteriores",
-        "Monitor Samsung Essential S4",
-        "Tablet S10+",
-        "Tablet S5+",
-        "Tablet S6+"
+        "Celular - Modelos Anteriores", "Celular Motorola G10", "Celular Motorola G22",
+        "Celular Motorola G7", "Celular Motorola G8", "Celular Motorola G9", "Celular Samsung A36",
+        "Dockstation Pro Smart (Workstation)", "Dockstation TB16 (Workstation)", "Dockstation WD15",
+        "Dockstation WD19", "Dockstation WD25 (Padrão)", "Monitor Dell P2417H", "Monitor LG 24MK430H",
+        "Monitor Modelos Anteriores", "Monitor Samsung Essential S4", "Tablet S10+", "Tablet S5+", "Tablet S6+"
       ],
       perifericos: [
-        "Adaptador RJ45",
-        "Ajuste Altura Monitor",
-        "Almofada de Fone (Headset) - UN",
-        "Apoio de Punho P/ teclado",
-        "Cabo HDMI",
-        "Cartão de Memória MicroSD 128GB",
-        "Cartucho HP 954XL Cleide - Amarelo",
-        "Cartucho HP 954XL Cleide - Ciano",
-        "Cartucho HP 954XL Cleide - Preto",
-        "Cartucho HP 964XL MP - Amarelo",
-        "Cartucho HP 964XL MP - Ciano",
-        "Cartucho HP 964XL MP - Magenta",
-        "Cartucho HP 964XL MP - Preto",
-        "Cartucho T067 Canon ES - Amarelo",
-        "Cartucho T067 Canon ES - Ciano",
-        "Cartucho T067 Canon ES - Magenta",
-        "Cartucho T067 Canon ES - Preto",
-        "Crachá Provisorio",
-        "Fita Brady",
-        "Fone de Ouvido Head Set USB",
-        "Mochila",
-        "Mouse",
-        "Mousepad",
-        "Patch cord",
-        "Pen Drive 128GB",
-        "Pen Drive 16GB Data Travel",
-        "Pen Drive 16GB Fit",
-        "Pen Drive 32GB Fit",
-        "Pen Drive 64GB Data Travel",
-        "Suporte para notebook",
-        "Teclado"
+        "Adaptador RJ45", "Ajuste Altura Monitor", "Almofada de Fone (Headset) - UN", "Apoio de Punho P/ teclado",
+        "Cabo HDMI", "Cartão de Memória MicroSD 128GB", "Cartucho HP 954XL Cleide - Amarelo", "Cartucho HP 954XL Cleide - Ciano",
+        "Cartucho HP 954XL Cleide - Preto", "Cartucho HP 964XL MP - Amarelo", "Cartucho HP 964XL MP - Ciano",
+        "Cartucho HP 964XL MP - Magenta", "Cartucho HP 964XL MP - Preto", "Cartucho T067 Canon ES - Amarelo",
+        "Cartucho T067 Canon ES - Ciano", "Cartucho T067 Canon ES - Magenta", "Cartucho T067 Canon ES - Preto",
+        "Crachá Provisorio", "Fita Brady", "Fone de Ouvido Head Set USB", "Mochila", "Mouse", "Mousepad",
+        "Patch cord", "Pen Drive 128GB", "Pen Drive 16GB Data Travel", "Pen Drive 16GB Fit", "Pen Drive 32GB Fit",
+        "Pen Drive 64GB Data Travel", "Suporte para notebook", "Teclado"
       ]
     };
 
@@ -203,7 +163,7 @@
     let lancamentos = [];
 
     function carregarDadosSalvos() {
-      const salvo = localStorage.getItem('inventario_almoxarifado');
+      const salvo = localStorage.getItem('inventario_almoxarifado_v2');
       if (salvo) {
         try {
           lancamentos = JSON.parse(salvo);
@@ -215,8 +175,13 @@
     }
 
     function persistirDados() {
-      localStorage.setItem('inventario_almoxarifado', JSON.stringify(lancamentos));
+      localStorage.setItem('inventario_almoxarifado_v2', JSON.stringify(lancamentos));
       atualizarResumo();
+    }
+
+    function forcarBackup() {
+      persistirDados();
+      alert('✅ Dados salvos com segurança na memória do navegador!');
     }
 
     function selecionarCategoria(cat) {
@@ -246,6 +211,7 @@
 
       const painelAtivos = document.getElementById('painelAtivos');
       const painelPerifericos = document.getElementById('painelPerifericos');
+      const blocoMsSp = document.getElementById('blocoMsSp');
 
       if (cat === 'periferico') {
         painelAtivos.classList.add('hidden');
@@ -253,6 +219,14 @@
       } else {
         painelAtivos.classList.remove('hidden');
         painelPerifericos.classList.add('hidden');
+        
+        // Exibe o campo MS-SP APENAS para notebooks
+        if (cat === 'notebook') {
+          blocoMsSp.classList.remove('hidden');
+        } else {
+          blocoMsSp.classList.add('hidden');
+          document.getElementById('chkMsSp').checked = false;
+        }
       }
     }
 
@@ -304,7 +278,9 @@
       } else {
         const estadoEl = document.querySelector('input[name="estadoAtivo"]:checked');
         const estado = estadoEl ? estadoEl.value : 'BOM';
-        const isMsSp = document.getElementById('chkMsSp').checked;
+        
+        // MS-SP só aplica se for notebook
+        const isMsSp = (categoriaAtual === 'notebook') && document.getElementById('chkMsSp').checked;
         const qtd = parseInt(document.getElementById('qtdAtivoInput').value) || 1;
 
         let nomeFormatado = modeloBase;
